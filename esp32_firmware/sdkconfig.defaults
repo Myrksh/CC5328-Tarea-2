@@ -1,0 +1,5 @@
+# Tarea 1: fs por eje hasta 1000 Hz necesita tick de 1 ms
+CONFIG_FREERTOS_HZ=1000
+
+# La consola debe seguir por UART0 (no apagarla)
+# CONFIG_ESP_CONSOLE_NONE is not set

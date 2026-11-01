@@ -1,0 +1,524 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>825</width>
+    <height>733</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>MainWindow</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <layout class="QGridLayout" name="gridLayout">
+    <item row="0" column="0">
+     <widget class="QTabWidget" name="pestanas">
+      <property name="currentIndex">
+       <number>0</number>
+      </property>
+      <widget class="QWidget" name="graficos">
+       <attribute name="title">
+        <string>Gráficos</string>
+       </attribute>
+       <layout class="QGridLayout" name="gridLayout_3">
+        <item row="1" column="0">
+         <widget class="QGroupBox" name="eje_x">
+          <property name="title">
+           <string>Eje X</string>
+          </property>
+          <layout class="QGridLayout" name="gridLayout_12">
+           <item row="0" column="1">
+            <layout class="QGridLayout" name="configuracion_x">
+             <item row="2" column="0">
+              <widget class="QLabel" name="frecuencia_x_label">
+               <property name="text">
+                <string>Frecuencia de muestreo (hz)</string>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="1">
+              <widget class="QComboBox" name="amplitud_x">
+               <item>
+                <property name="text">
+                 <string>4</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>8</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>16</string>
+                </property>
+               </item>
+              </widget>
+             </item>
+             <item row="1" column="0">
+              <widget class="QLabel" name="amplitud_x_label">
+               <property name="text">
+                <string>Rango de amplitud (g)</string>
+               </property>
+              </widget>
+             </item>
+             <item row="0" column="1">
+              <widget class="QComboBox" name="funcion_x">
+               <item>
+                <property name="text">
+                 <string>Armónica Simple</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>Modulada en Amplitud</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>Multicomponente</string>
+                </property>
+               </item>
+              </widget>
+             </item>
+             <item row="2" column="1">
+              <widget class="QComboBox" name="frecuencia_x">
+               <property name="editable">
+                <bool>false</bool>
+               </property>
+               <property name="currentIndex">
+                <number>1</number>
+               </property>
+               <item>
+                <property name="text">
+                 <string>50</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>100</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>200</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>500</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>1000</string>
+                </property>
+               </item>
+              </widget>
+             </item>
+             <item row="0" column="0">
+              <widget class="QLabel" name="funcion_x_label">
+               <property name="text">
+                <string>Función de vibración</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item row="0" column="0">
+            <layout class="QVBoxLayout" name="plot_layout_x"/>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item row="0" column="0">
+         <widget class="QPushButton" name="pausa_graficos">
+          <property name="text">
+           <string>Pausar lecturas</string>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="0">
+         <widget class="QGroupBox" name="eje_y">
+          <property name="title">
+           <string>Eje Y</string>
+          </property>
+          <layout class="QGridLayout" name="gridLayout_9">
+           <item row="0" column="1">
+            <layout class="QGridLayout" name="configuracion_y">
+             <item row="1" column="1">
+              <widget class="QComboBox" name="amplitud_y">
+               <item>
+                <property name="text">
+                 <string>4</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>8</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>16</string>
+                </property>
+               </item>
+              </widget>
+             </item>
+             <item row="2" column="1">
+              <widget class="QComboBox" name="frecuencia_y">
+               <property name="currentIndex">
+                <number>1</number>
+               </property>
+               <item>
+                <property name="text">
+                 <string>50</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>100</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>200</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>500</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>1000</string>
+                </property>
+               </item>
+              </widget>
+             </item>
+             <item row="0" column="0">
+              <widget class="QLabel" name="funcion_y_label">
+               <property name="text">
+                <string>Función de vibración</string>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="0">
+              <widget class="QLabel" name="amplitud_y_label">
+               <property name="text">
+                <string>Rango de amplitud (g)</string>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="0">
+              <widget class="QLabel" name="frecuencia_y_label">
+               <property name="text">
+                <string>Frecuencia de muestreo (hz)</string>
+               </property>
+              </widget>
+             </item>
+             <item row="0" column="1">
+              <widget class="QComboBox" name="funcion_y">
+               <item>
+                <property name="text">
+                 <string>Armónica Simple</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>Modulada en Amplitud</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>Multicomponente</string>
+                </property>
+               </item>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item row="0" column="0">
+            <layout class="QVBoxLayout" name="plot_layout_y"/>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item row="3" column="0">
+         <widget class="QGroupBox" name="eje_z">
+          <property name="title">
+           <string>Eje Z</string>
+          </property>
+          <layout class="QGridLayout" name="gridLayout_6">
+           <item row="0" column="0">
+            <layout class="QVBoxLayout" name="plot_layout_z"/>
+           </item>
+           <item row="0" column="1">
+            <layout class="QGridLayout" name="configuracion_z">
+             <item row="0" column="1">
+              <widget class="QComboBox" name="funcion_z">
+               <item>
+                <property name="text">
+                 <string>Armónica Simple</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>Modulada en Amplitud</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>Multicomponente</string>
+                </property>
+               </item>
+              </widget>
+             </item>
+             <item row="1" column="1">
+              <widget class="QComboBox" name="amplitud_z">
+               <item>
+                <property name="text">
+                 <string>4</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>8</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>16</string>
+                </property>
+               </item>
+              </widget>
+             </item>
+             <item row="2" column="1">
+              <widget class="QComboBox" name="frecuencia_z">
+               <property name="currentIndex">
+                <number>1</number>
+               </property>
+               <item>
+                <property name="text">
+                 <string>50</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>100</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>200</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>500</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>1000</string>
+                </property>
+               </item>
+              </widget>
+             </item>
+             <item row="2" column="0">
+              <widget class="QLabel" name="frecuencia_z_label">
+               <property name="text">
+                <string>Frecuencia de muestreo (hz)</string>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="0">
+              <widget class="QLabel" name="amplitud_z_label">
+               <property name="text">
+                <string>Rango de amplitud (g)</string>
+               </property>
+              </widget>
+             </item>
+             <item row="0" column="0">
+              <widget class="QLabel" name="funcion_z_label">
+               <property name="text">
+                <string>Función de vibración</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+          </layout>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="ambiente">
+       <attribute name="title">
+        <string>Estadísticas de ambiente</string>
+       </attribute>
+       <layout class="QGridLayout" name="gridLayout_16">
+        <item row="1" column="2">
+         <widget class="QLCDNumber" name="hum_value"/>
+        </item>
+        <item row="0" column="2">
+         <widget class="QLCDNumber" name="temp_value"/>
+        </item>
+        <item row="0" column="1">
+         <widget class="QLabel" name="temp_value_label">
+          <property name="lineWidth">
+           <number>1</number>
+          </property>
+          <property name="text">
+           <string>Temperatura (°C)</string>
+          </property>
+          <property name="textFormat">
+           <enum>Qt::TextFormat::AutoText</enum>
+          </property>
+          <property name="scaledContents">
+           <bool>true</bool>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignmentFlag::AlignCenter</set>
+          </property>
+          <property name="wordWrap">
+           <bool>false</bool>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="1">
+         <widget class="QLabel" name="hum_value_label">
+          <property name="lineWidth">
+           <number>1</number>
+          </property>
+          <property name="text">
+           <string>Humedad Relativa</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignmentFlag::AlignCenter</set>
+          </property>
+          <property name="wordWrap">
+           <bool>false</bool>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="configuracion">
+       <attribute name="title">
+        <string>Configuración</string>
+       </attribute>
+       <layout class="QGridLayout" name="gridLayout_18">
+        <item row="1" column="0">
+         <widget class="QLabel" name="puerto_combo_label">
+          <property name="text">
+           <string>Puerto ESP-32</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="1">
+         <widget class="QComboBox" name="baudios_combo">
+          <item>
+           <property name="text">
+            <string>115200</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>230400</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>460800</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>921600</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item row="0" column="0">
+         <widget class="QLabel" name="baudios_combo_label">
+          <property name="text">
+           <string>Baud Rate</string>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="0">
+         <widget class="QLabel" name="periodo_combo_label">
+          <property name="text">
+           <string>Intervalo de Envio (s)</string>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="1">
+         <widget class="QComboBox" name="periodo_combo">
+          <item>
+           <property name="text">
+            <string>30</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>60</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item row="1" column="1">
+         <widget class="QComboBox" name="puerto_combo"/>
+        </item>
+       </layout>
+      </widget>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QMenuBar" name="menubar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>825</width>
+     <height>24</height>
+    </rect>
+   </property>
+   <widget class="QMenu" name="menu_conexion">
+    <property name="title">
+     <string>Conexión</string>
+    </property>
+    <addaction name="action_conectar"/>
+    <addaction name="action_desconectar"/>
+    <addaction name="separator"/>
+    <addaction name="action_inicializar"/>
+   </widget>
+   <addaction name="menu_conexion"/>
+  </widget>
+  <widget class="QStatusBar" name="statusbar"/>
+  <action name="action_conectar">
+   <property name="text">
+    <string>Conectar</string>
+   </property>
+  </action>
+  <action name="action_desconectar">
+   <property name="text">
+    <string>Desconectar</string>
+   </property>
+  </action>
+  <action name="action_inicializar">
+   <property name="text">
+    <string>Inicializar</string>
+   </property>
+  </action>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
