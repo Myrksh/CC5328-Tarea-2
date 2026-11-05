@@ -1,0 +1,393 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>950</width>
+    <height>800</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Tarea 2 — Control BME688 &amp;</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <layout class="QGridLayout" name="gridLayout_main">
+    <item row="0" column="0">
+     <widget class="QTabWidget" name="pestanas">
+      <property name="currentIndex">
+       <number>0</number>
+      </property>
+      <widget class="QWidget" name="tab_graficos">
+       <attribute name="title">
+        <string>Visualizador</string>
+       </attribute>
+       <layout class="QVBoxLayout" name="verticalLayout_graficos">
+        <item>
+         <widget class="QPushButton" name="pausa_graficos">
+          <property name="text">
+           <string>Pausar Lecturas</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QGroupBox" name="group_temp">
+          <property name="title">
+           <string>Temperatura (°C)</string>
+          </property>
+          <layout class="QVBoxLayout" name="plot_layout_temp"/>
+         </widget>
+        </item>
+        <item>
+         <widget class="QGroupBox" name="group_hum">
+          <property name="title">
+           <string>Humedad Relativa (%HR)</string>
+          </property>
+          <layout class="QVBoxLayout" name="plot_layout_hum"/>
+         </widget>
+        </item>
+        <item>
+         <widget class="QGroupBox" name="group_pres">
+          <property name="title">
+           <string>Presión Atmosférica (hPa)</string>
+          </property>
+          <layout class="QVBoxLayout" name="plot_layout_pres"/>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="tab_procesamiento">
+       <attribute name="title">
+        <string>Parámetros</string>
+       </attribute>
+       <layout class="QGridLayout" name="gridLayout_proc">
+        <!-- Selección de Variables -->
+        <item row="0" column="0" colspan="2">
+         <widget class="QGroupBox" name="group_vars">
+          <property name="title">
+           <string>Variables a Transmitir</string>
+          </property>
+          <layout class="QHBoxLayout" name="horizontalLayout_vars">
+           <item>
+            <widget class="QCheckBox" name="chk_temp">
+             <property name="text">
+              <string>Temperatura (T)</string>
+             </property>
+             <property name="checked">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QCheckBox" name="chk_hum">
+             <property name="text">
+              <string>Humedad (H)</string>
+             </property>
+             <property name="checked">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QCheckBox" name="chk_pres">
+             <property name="text">
+              <string>Presión (P)</string>
+             </property>
+             <property name="checked">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+
+        <!-- Frecuencia de Muestreo -->
+        <item row="1" column="0" colspan="2">
+         <widget class="QGroupBox" name="group_freq">
+          <property name="title">
+           <string>Frecuencia de Adquisición</string>
+          </property>
+          <layout class="QHBoxLayout" name="horizontalLayout_freq">
+           <item>
+            <widget class="QLabel" name="lbl_freq">
+             <property name="text">
+              <string>Frecuencia de muestreo (Hz):</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QComboBox" name="combo_frecuencia">
+             <item>
+              <property name="text">
+               <string>0.5</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>1</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>2</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>5</string>
+              </property>
+             </item>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+
+        <!-- Media Móvil Temporal -->
+        <item row="2" column="0">
+         <widget class="QGroupBox" name="group_media_movil">
+          <property name="title">
+           <string>Media Móvil (ESP32)</string>
+          </property>
+          <layout class="QGridLayout" name="gridLayout_mm">
+           <item row="0" column="0" colspan="2">
+            <widget class="QCheckBox" name="chk_media_movil">
+             <property name="text">
+              <string>Habilitar Cálculo de Promedio</string>
+             </property>
+             <property name="checked">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QLabel" name="lbl_w">
+             <property name="text">
+              <string>Ventana W (s):</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="1">
+            <widget class="QComboBox" name="combo_ventana_w">
+             <item>
+              <property name="text">
+               <string>5</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>10</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>30</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>60</string>
+              </property>
+             </item>
+            </widget>
+           </item>
+           <item row="2" column="0">
+            <widget class="QLabel" name="lbl_title_avg">
+             <property name="text">
+              <string>temp_avg_c Recibido:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="1">
+            <widget class="QLabel" name="lbl_val_temp_avg">
+             <property name="text">
+              <string>-- °C</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+
+        <!-- Detección de Picos -->
+        <item row="2" column="1">
+         <widget class="QGroupBox" name="group_picos">
+          <property name="title">
+           <string>Detección de Picos (ESP32)</string>
+          </property>
+          <layout class="QGridLayout" name="gridLayout_picos">
+           <item row="0" column="0" colspan="2">
+            <widget class="QCheckBox" name="chk_picos">
+             <property name="text">
+              <string>Habilitar Detección de Picos</string>
+             </property>
+             <property name="checked">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QLabel" name="lbl_umbral">
+             <property name="text">
+              <string>Umbral θ (°C):</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="1">
+            <widget class="QDoubleSpinBox" name="spin_umbral_pico">
+             <property name="singleStep">
+              <double>0.100000000000000</double>
+             </property>
+             <property name="value">
+              <double>28.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="0" colspan="2">
+            <widget class="QListWidget" name="lista_eventos_picos"/>
+           </item>
+          </layout>
+         </widget>
+        </item>
+
+        <!-- Estadísticas y Valores Actuales -->
+        <item row="3" column="0" colspan="2">
+         <widget class="QGroupBox" name="group_lecturas">
+          <property name="title">
+           <string>Valores Actuales (Mediciones BME688)</string>
+          </property>
+          <layout class="QHBoxLayout" name="horizontalLayout_vals">
+           <item>
+            <widget class="QLabel" name="lbl_title_temp">
+             <property name="text">
+              <string>T:</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QLabel" name="lbl_val_temp">
+             <property name="text">
+              <string>-- °C</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QLabel" name="lbl_title_hum">
+             <property name="text">
+              <string>H:</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QLabel" name="lbl_val_hum">
+             <property name="text">
+              <string>-- %HR</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QLabel" name="lbl_title_pres">
+             <property name="text">
+              <string>P:</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QLabel" name="lbl_val_pres">
+             <property name="text">
+              <string>-- hPa</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="configuracion">
+       <attribute name="title">
+        <string>Configuración de puerto</string>
+       </attribute>
+       <layout class="QGridLayout" name="gridLayout_serial">
+        <item row="0" column="0">
+         <widget class="QLabel" name="baudios_combo_label">
+          <property name="text">
+           <string>Baud Rate</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="1">
+         <widget class="QComboBox" name="baudios_combo">
+          <item>
+           <property name="text">
+            <string>115200</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>230400</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>460800</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>921600</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item row="1" column="0">
+         <widget class="QLabel" name="puerto_combo_label">
+          <property name="text">
+           <string>Puerto ESP-32</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="1">
+         <widget class="QComboBox" name="puerto_combo"/>
+        </item>
+       </layout>
+      </widget>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QMenuBar" name="menubar">
+   <widget class="QMenu" name="menu_conexion">
+    <property name="title">
+     <string>Conexión</string>
+    </property>
+    <addaction name="action_conectar"/>
+    <addaction name="action_desconectar"/>
+    <addaction name="separator"/>
+    <addaction name="action_inicializar"/>
+   </widget>
+   <addaction name="menu_conexion"/>
+  </widget>
+  <widget class="QStatusBar" name="statusbar"/>
+  <action name="action_conectar">
+   <property name="text">
+    <string>Conectar</string>
+   </property>
+  </action>
+  <action name="action_desconectar">
+   <property name="text">
+    <string>Desconectar</string>
+   </property>
+  </action>
+  <action name="action_inicializar">
+   <property name="text">
+    <string>Inicializar</string>
+   </property>
+  </action>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

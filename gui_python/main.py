@@ -1,41 +1,42 @@
-"""Ensamblaje de la GUI: carga el .ui generado por pyuic6, monta los
-gráficos en los layouts, y conecta los controles con el ReceptorSerial
-(QThread). Patrones de context/embeb-qt/main.py y main_qthread.py
-(repo del auxiliar).
+"""
+GUI Tarea 2 — BME688 + ESP32
+Control de adquisición remota, procesamiento embebido (Media Móvil y Picos)
+y visualización en tiempo real mediante PyQt6.
 """
 import sys
-
 from PyQt6.QtCore import QTimer, QThread, pyqtSlot
-from PyQt6.QtWidgets import QApplication, QMainWindow
+from PyQt6.QtWidgets import QApplication, QMainWindow, QMessageBox
 from serial.tools import list_ports
 
 import protocol
 from live_plot import LivePlot
-from ui_not_celerometro import Ui_MainWindow
+from bme688_gui import Ui_MainWindow  # Ajustar si cambias el nombre del UI
 from receptor import ReceptorSerial
 
-EJES = ("x", "y", "z")
-AMPLITUD_MENU = (4, 8, 16)
-
+VARIABLES = ("temp", "hum", "pres")
+FRECUENCIAS = (0.5, 1, 2, 5)
+VENTANAS_W = (5, 10, 30, 60)
 
 class Ventana(QMainWindow):
     def __init__(self):
         super().__init__()
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
-        self.setWindowTitle("Tarea 1 — Acelerómetro")
-        self.ui.pestanas.setCurrentIndex(0)
+        self.setWindowTitle("Tarea 2 — BME688")
 
         self.hilo = None
         self.receptor = None
         self.pausado = False
 
-        # Un gráfico por eje, insertado en los layouts vacíos del .ui
-        self.graficos = {}
-        for eje in EJES:
-            grafico = LivePlot(f"Eje {eje.upper()}")
-            getattr(self.ui, f"plot_layout_{eje}").addWidget(grafico)
-            self.graficos[eje] = grafico
+        self.graficos = {
+            "temp": LivePlot("Temperatura (°C)"),
+            "hum": LivePlot("Humedad (%HR)"),
+            "pres": LivePlot("Presión (hPa)")
+        }
+
+        self.ui.plot_layout_temp.addWidget(self.graficos["temp"])
+        self.ui.plot_layout_hum.addWidget(self.graficos["hum"])
+        self.ui.plot_layout_pres.addWidget(self.graficos["pres"])
 
         self.llenar_puertos()
         self.conectar_senales()
@@ -44,51 +45,56 @@ class Ventana(QMainWindow):
     def conectar_senales(self):
         self.ui.action_conectar.triggered.connect(self.conectar)
         self.ui.action_desconectar.triggered.connect(self.desconectar)
-        self.ui.action_inicializar.triggered.connect(self.inicializar)
         self.ui.pausa_graficos.setCheckable(True)
         self.ui.pausa_graficos.clicked.connect(self.alternar_pausa)
-        for eje in EJES:
-            getattr(self.ui, f"funcion_{eje}").currentIndexChanged.connect(
-                self.enviar_config)
-            getattr(self.ui, f"amplitud_{eje}").currentIndexChanged.connect(
-                self.enviar_config)
-            getattr(self.ui, f"frecuencia_{eje}").currentIndexChanged.connect(
-                self.enviar_config)
-        self.ui.periodo_combo.currentIndexChanged.connect(self.enviar_periodo)
-        self.ui.baudios_combo.currentIndexChanged.connect(self.enviar_baudios)
+
+        self.ui.chk_temp.stateChanged.connect(self.validar_y_enviar_variables)
+        self.ui.chk_hum.stateChanged.connect(self.validar_y_enviar_variables)
+        self.ui.chk_pres.stateChanged.connect(self.validar_y_enviar_variables)
+
+        self.ui.combo_frecuencia.currentIndexChanged.connect(self.enviar_frecuencia)
+
+        self.ui.chk_media_movil.stateChanged.connect(self.enviar_config_media_movil)
+        self.ui.combo_ventana_w.currentIndexChanged.connect(self.enviar_config_media_movil)
+
+        self.ui.chk_picos.stateChanged.connect(self.enviar_config_picos)
+        self.ui.spin_umbral_pico.valueChanged.connect(self.enviar_config_picos)
 
     def llenar_puertos(self):
-        """Puertos USB/ACM disponibles para llenar el combo"""
+        """Busca y añade los puertos COM/USB disponibles."""
         self.ui.puerto_combo.clear()
         usb = [p.device for p in list_ports.comports()
-               if "USB" in p.device or "ACM" in p.device]
+               if "USB" in p.device or "ACM" in p.device or "COM" in p.device]
         for puerto in sorted(usb):
             self.ui.puerto_combo.addItem(puerto)
 
-    # --- conexión ---
-
     def conectado(self) -> bool:
-        return self.receptor is not None and self.hilo is not None \
-            and self.hilo.isRunning()
+        return self.receptor is not None and self.hilo is not None and self.hilo.isRunning()
 
     def conectar(self):
         if self.conectado():
             return
         if not self.ui.puerto_combo.currentText():
-            self.llenar_puertos()  # re-escaneo por si la placa llegó tarde
+            self.llenar_puertos()
         puerto = self.ui.puerto_combo.currentText()
         if not puerto:
             self.ui.statusbar.showMessage("No hay puertos USB/ACM disponibles")
             return
-        self.receptor = ReceptorSerial(puerto, protocol.BAUDIOS_MENU[0])
+
+        baudios = int(self.ui.baudios_combo.currentText()) if hasattr(self.ui, 'baudios_combo') else 115200
+        self.receptor = ReceptorSerial(puerto, baudios)
         self.hilo = QThread()
         self.receptor.moveToThread(self.hilo)
+
         self.hilo.started.connect(self.receptor.arrancar)
         self.hilo.finished.connect(self.receptor.cerrar)
-        self.receptor.dato_eje.connect(self.recibir_dato)
-        self.receptor.ambiente.connect(self.recibir_ambiente)
+
+        self.receptor.dato_telemetria.connect(self.recibir_telemetria)
+        self.receptor.evento_pico.connect(self.recibir_evento_pico)
+        self.receptor.error_sensor.connect(self.mostrar_error_sensor)
         self.receptor.respuesta.connect(self.mostrar_respuesta)
         self.receptor.conexion.connect(self.cambio_conexion)
+
         self.hilo.start()
 
     def desconectar(self):
@@ -101,108 +107,105 @@ class Ventana(QMainWindow):
         self.ui.action_desconectar.setEnabled(False)
         self.ui.statusbar.showMessage("Desconectado")
 
-    def cerrar_hilo(self):
-        if self.hilo is not None:
-            self.hilo.quit()
-            self.hilo.wait()
-            self.hilo = None
-            self.receptor = None
-
     def cambio_conexion(self, ok: bool, motivo: str):
         if ok:
             self.ui.action_conectar.setEnabled(False)
             self.ui.action_desconectar.setEnabled(True)
-            # el INICIAR automático dejó al ESP en defaults y 115200
-            self.poner_defaults()
-            self.ui.statusbar.showMessage(
-                f"Conectado a {self.ui.puerto_combo.currentText()}")
+            self.sincronizar_configuracion_inicial()
+            self.ui.statusbar.showMessage(f"Conectado a {self.ui.puerto_combo.currentText()}")
         else:
-            self.cerrar_hilo()
-            self.ui.action_conectar.setEnabled(True)
-            self.ui.action_desconectar.setEnabled(False)
+            self.desconectar()
             self.ui.statusbar.showMessage(f"Fallo de conexión: {motivo}")
 
-    def inicializar(self):
-        if not self.conectado():
+
+    def validar_y_enviar_variables(self):
+        """Impide dejar 0 variables seleccionadas y notifica al ESP32."""
+        t_active = self.ui.chk_temp.isChecked()
+        h_active = self.ui.chk_hum.isChecked()
+        p_active = self.ui.chk_pres.isChecked()
+
+        if not (t_active or h_active or p_active):
+            QMessageBox.warning(self, "Selección inválida", "Debe transmitir al menos una variable (T, H o P).")
+            sender = self.sender()
+            sender.blockSignals(True)
+            sender.setChecked(True)
+            sender.blockSignals(False)
             return
-        self.receptor.mandar(protocol.comando_iniciar())
-        self.poner_defaults()
-        QTimer.singleShot(150,
-                          lambda: self._pedir_reapertura(protocol.BAUDIOS_MENU[0]))
 
-    # --- señales del receptor ---
+        # Ajustar estado visual del gráfico según si se recibe o no
+        self.graficos["temp"].setEnabled(t_active)
+        self.graficos["hum"].setEnabled(h_active)
+        self.graficos["pres"].setEnabled(p_active)
 
-    def recibir_dato(self, eje: str, valor: float):
-        self.graficos[eje.lower()].agregar(valor)
+        if self.conectado():
+            cmd = protocol.comando_variables(temp=t_active, hum=h_active, pres=p_active)
+            self.receptor.mandar(cmd)
 
-    def recibir_ambiente(self, temp: float, hr: int):
-        self.ui.temp_value.display(temp)
-        self.ui.hum_value.display(hr)
+    def enviar_frecuencia(self):
+        if self.conectado():
+            freq = float(self.ui.combo_frecuencia.currentText())
+            self.receptor.mandar(protocol.comando_frecuencia(freq))
+
+    def enviar_config_media_movil(self):
+        if self.conectado():
+            enabled = self.ui.chk_media_movil.isChecked()
+            w_sec = int(self.ui.combo_ventana_w.currentText())
+            self.receptor.mandar(protocol.comando_media_movil(enabled, w_sec))
+
+    def enviar_config_picos(self):
+        if self.conectado():
+            enabled = self.ui.chk_picos.isChecked()
+            umbral = float(self.ui.spin_umbral_pico.value())
+            self.receptor.mandar(protocol.comando_picos(enabled, umbral))
+
+
+    @pyqtSlot(dict)
+    def recibir_telemetria(self, datos: dict):
+        """Recibe un diccionario con las lecturas transmitidas por el ESP32."""
+        if "temp" in datos:
+            self.graficos["temp"].agregar(datos["temp"])
+            self.ui.lbl_val_temp.setText(f"{datos['temp']:.2f} °C")
+        if "hum" in datos:
+            self.graficos["hum"].agregar(datos["hum"])
+            self.ui.lbl_val_hum.setText(f"{datos['hum']:.1f} %HR")
+        if "pres" in datos:
+            self.graficos["pres"].agregar(datos["pres"])
+            self.ui.lbl_val_pres.setText(f"{datos['pres']:.1f} hPa")
+
+        # Media Móvil calculada internamente en el ESP32 (temp_avg_c)
+        if "temp_avg_c" in datos:
+            avg_val = datos["temp_avg_c"]
+            is_complete = datos.get("avg_complete", True)
+            status_str = f"{avg_val:.2f} °C" if is_complete else f"{avg_val:.2f} °C (Incompleto)"
+            self.ui.lbl_val_temp_avg.setText(status_str)
+
+    @pyqtSlot(float, float, int)
+    def recibir_evento_pico(self, valor_pico: float, umbral: float, timestamp_ms: int):
+        """Registra en el historial los eventos de picos locales superados en el ESP32."""
+        mensaje = f"[{timestamp_ms} ms] ¡PICO DETECTADO! Valor: {valor_pico:.2f} °C (Umbral: {umbral:.1f} °C)"
+        self.ui.lista_eventos_picos.addItem(mensaje)
+
+    @pyqtSlot(str)
+    def mostrar_error_sensor(self, error_msg: str):
+        """Indica fallos de inicialización o lectura del BME688."""
+        self.ui.statusbar.showMessage(f"Error BME688: {error_msg}")
+        self.ui.lbl_val_temp.setText("N/A (Error)")
 
     def mostrar_respuesta(self, cuerpo: str):
-        if cuerpo.startswith("OK,BAUDIOS"):
-            campos = cuerpo.split(",")
-            if len(campos) == 3:
-                nuevo = int(campos[2])
-                QTimer.singleShot(100, lambda: self._pedir_reapertura(nuevo))
         self.ui.statusbar.showMessage(cuerpo, 4000)
 
     def alternar_pausa(self):
         self.pausado = self.ui.pausa_graficos.isChecked()
         if self.receptor is not None:
             self.receptor.pausado = self.pausado
-        self.ui.statusbar.showMessage(
-            "Lecturas pausadas" if self.pausado else "Lecturas activas")
+        self.ui.statusbar.showMessage("Lecturas pausadas" if self.pausado else "Lecturas activas")
 
-    # --- comandos desde los combos ---
-
-    def enviar_config(self):
-        if not self.conectado():
-            return
-        nombre = self.sender().objectName()
-        eje = nombre[-1].upper()
-        combo = self.sender()
-        if nombre.startswith("funcion_"):
-            cmd = protocol.comando_funcion(eje, combo.currentIndex() + 1)
-        elif nombre.startswith("amplitud_"):
-            cmd = protocol.comando_amplitud(eje, AMPLITUD_MENU[combo.currentIndex()])
-        else:
-            cmd = protocol.comando_frecuencia(eje, int(combo.currentText()))
-        self.receptor.mandar(cmd)
-
-    def enviar_periodo(self):
-        if self.conectado():
-            self.receptor.mandar(
-                protocol.comando_periodo(int(self.ui.periodo_combo.currentText())))
-
-    def enviar_baudios(self):
-        if not self.conectado():
-            return
-        self.receptor.mandar(
-            protocol.comando_baudios(int(self.ui.baudios_combo.currentText())))
-
-    def _pedir_reapertura(self, nuevo: int):
-        if self.receptor is not None and self.receptor.baudios() != nuevo:
-            self.receptor.pedir_baudios(nuevo)
-
-    def poner_defaults(self):
-        """Combos a los defaults del firmware, sin disparar comandos."""
-        combos = []
-        for eje in EJES:
-            combos += [getattr(self.ui, f"funcion_{eje}"),
-                       getattr(self.ui, f"amplitud_{eje}"),
-                       getattr(self.ui, f"frecuencia_{eje}")]
-        combos += [self.ui.periodo_combo, self.ui.baudios_combo]
-        for combo in combos:
-            combo.blockSignals(True)
-        for eje in EJES:
-            getattr(self.ui, f"funcion_{eje}").setCurrentIndex(0)
-            getattr(self.ui, f"amplitud_{eje}").setCurrentIndex(0)
-            getattr(self.ui, f"frecuencia_{eje}").setCurrentIndex(1)
-        self.ui.periodo_combo.setCurrentIndex(0)
-        self.ui.baudios_combo.setCurrentIndex(0)
-        for combo in combos:
-            combo.blockSignals(False)
+    def sincronizar_configuracion_inicial(self):
+        """Envía el estado actual de los controles de la GUI apenas se conecta."""
+        self.validar_y_enviar_variables()
+        self.enviar_frecuencia()
+        self.enviar_config_media_movil()
+        self.enviar_config_picos()
 
     def closeEvent(self, evento):
         if self.hilo is not None:
@@ -210,13 +213,11 @@ class Ventana(QMainWindow):
             self.hilo.wait()
         super().closeEvent(evento)
 
-
 def main():
     app = QApplication(sys.argv)
     ventana = Ventana()
     ventana.show()
     app.exec()
-
 
 if __name__ == "__main__":
     main()
