@@ -68,91 +68,71 @@ static void responder(const char *cmd, const char *detalle) {
     protocolo_enviar_linea(resp);
 }
 
-/* Detalle "<eje>,<valor>" terminado en '\0' */
-static void detalle_eje(char *d, size_t *len, char eje, uint32_t valor) {
-    d[(*len)++] = eje;
-    d[(*len)++] = ',';
-    protocolo_agregar_entero(d, len, (int32_t)valor);
-    d[*len] = '\0';
-}
-
-/* Detalle "<valor>" terminado en '\0' */
-static void detalle_num(char *d, size_t *len, uint32_t valor) {
-    protocolo_agregar_entero(d, len, (int32_t)valor);
-    d[*len] = '\0';
-}
-
-/* Lee "<eje>,<valor>" a partir del prefijo ya matcheado */
-static bool leer_eje_valor(const char *cmd, size_t prefijo, char *eje,
-                           uint32_t *valor) {
-    const char *p = cmd + prefijo;
-    if ((p[0] != 'X' && p[0] != 'Y' && p[0] != 'Z') || p[1] != ',') {
-        return false;
-    }
-    *eje = p[0];
-    return parsear_uint(p + 2, valor);
-}
 
 /* Cuerpo ya con checksum validado */
 static void aplicar(const char *cmd) {
-    char eje;
     uint32_t valor;
     char d[16];
     size_t dl = 0;
 
     if (strncmp(cmd, "INICIAR", 7) == 0 && cmd[7] == '\0') {
         sensors_reiniciar();
-        ambiente_fijar_periodo(30);
+        bme_fijar_frecuencia(10);
+        bme_fijar_mediciones(0b111); // Los tres encendidos, de ahi b111 -> i7
+        bme_fijar_promedio(false, 10);
+        bme_fijar_picos(false, 28.0f);
         protocolo_fijar_baudios(PROTOCOLO_BAUDIOS_DEFAULT); /* y el baudio vuelve al de arranque */
-        responder("OK,INICIAR", "tarea1-v1.0");
-        return;
-    }
-    if (strncmp(cmd, "FUNCION,", 8) == 0) {
-        if (!leer_eje_valor(cmd, 8, &eje, &valor)) {
-            responder("ERROR,FUNCION", "formato invalido");
-        } else if (valor < 1 || valor > 3) {
-            responder("ERROR,FUNCION", "modo invalido");
-        } else {
-            sensors_fijar_funcion((sensor_eje_t)(eje - 'X'),
-                                  (sensor_funcion_t)valor);
-            detalle_eje(d, &dl, eje, valor);
-            responder("OK,FUNCION", d);
-        }
-        return;
-    }
-    if (strncmp(cmd, "AMPLITUD,", 9) == 0) {
-        if (!leer_eje_valor(cmd, 9, &eje, &valor)) {
-            responder("ERROR,AMPLITUD", "formato invalido");
-        } else if (valor != 4 && valor != 8 && valor != 16) {
-            responder("ERROR,AMPLITUD", "amplitud invalida");
-        } else {
-            sensors_fijar_amplitud((sensor_eje_t)(eje - 'X'), (uint8_t)valor);
-            detalle_eje(d, &dl, eje, valor);
-            responder("OK,AMPLITUD", d);
-        }
+        responder("OK,INICIAR", "tarea2-v0.1");
         return;
     }
     if (strncmp(cmd, "FRECUENCIA,", 11) == 0) {
-        if (!leer_eje_valor(cmd, 11, &eje, &valor)) {
+        if (!parsear_uint(cmd, 11, &valor)) {
             responder("ERROR,FRECUENCIA", "formato invalido");
-        } else if (valor != 50 && valor != 100 && valor != 200
-                   && valor != 500 && valor != 1000) {
-            responder("ERROR,FRECUENCIA", "fs invalida");
+        } else if (valor != 5 && valor != 10 && valor != 20 && valor != 50) {
+            responder("ERROR,FRECUENCIA", "frecuencia invalida");
         } else {
-            sensors_fijar_fs((sensor_eje_t)(eje - 'X'), (uint16_t)valor);
-            detalle_eje(d, &dl, eje, valor);
+            // MODIFICAR
+            // bme_fijar_frecuencia(valor);
             responder("OK,FRECUENCIA", d);
         }
         return;
     }
-    if (strncmp(cmd, "PERIODO,", 8) == 0) {
-        if (!parsear_uint(cmd + 8, &valor) || (valor != 30 && valor != 60)) {
-            responder("ERROR,PERIODO", "periodo invalido");
+    if (strncmp(cmd, "MEDICIONES,", 11) == 0) {
+        if (!parsear_uint(cmd, 11, &valor)) {
+            responder("ERROR,MEDICIONES", "formato invalido");
+        } else if (valor <= 0 || valor > 7) {
+            responder("ERROR,MEDICIONES", "modo invalido");
         } else {
-            ambiente_fijar_periodo(valor);
-            detalle_num(d, &dl, valor);
-            responder("OK,PERIODO", d);
+            // MODIFICAR
+            // bme_fijar_mediciones(valor);
+            responder("OK,TEMPERATURA", d);
         }
+        return;
+    }
+    if (strncmp(cmd, "PROMEDIO,", 9) == 0) {
+        int act, w;
+        if (sscanf(cmd + 9, "%d,%d", &act, &w) == 2) {
+            if ((act == 0 || act == 1) && (w == 5 || w == 10 || w == 30 || w == 60)) { //[cite: 1]
+                bme_fijar_promedio((bool)act, w);
+                responder("OK,PROMEDIO", cmd + 9);
+                return;
+            }
+        }
+        responder("ERROR,PROMEDIO", "parametros invalidos");
+        return;
+    }
+
+    if (strncmp(cmd, "PICOS,", 6) == 0) {
+        int act;
+        float umbral;
+        if (sscanf(cmd + 6, "%d,%f", &act, &umbral) == 2) {
+            if (act == 0 || act == 1) {
+                bme_fijar_picos((bool)act, umbral);
+                responder("OK,PICOS", cmd + 6);
+                return;
+            }
+        }
+        responder("ERROR,PICOS", "parametros invalidos");
         return;
     }
     if (strncmp(cmd, "BAUDIOS,", 8) == 0) {
