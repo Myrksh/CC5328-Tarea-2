@@ -10,5 +10,6 @@ void app_main(void) {
     // sensors_init();
     // ambiente_init();
     // comandos_init();
+    bme_init();
     register_metrics();
 }

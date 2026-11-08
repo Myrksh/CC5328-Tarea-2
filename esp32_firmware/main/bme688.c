@@ -35,9 +35,105 @@
 #define BME688_STATUS_NEW_DATA      (1 << 7)
 #define BME688_STATUS_MEASURING     (1 << 5)
 
-void register_metrics(void) {
-  /* Init driver */
-  i2c_master_bus_handle_t bus_handle;
+typedef struct {
+  float sample_rate_hz;
+  bool enable_temp;
+  bool enable_hum;
+  bool enable_pres;
+} bme_config_t;
+
+typedef struct {
+  uint16_t par_t1;
+  int16_t par_t2;
+  int8_t par_t3;
+  uint16_t par_p1;
+  int16_t par_p2;
+  int8_t par_p3;
+  int16_t par_p4;
+  int16_t par_p5;
+  int8_t par_p6;
+  int8_t par_p7;
+  int16_t par_p8;
+  int16_t par_p9;
+  uint8_t par_p10;
+  uint16_t par_h1;
+  uint16_t par_h2;
+  int8_t par_h3;
+  int8_t par_h4;
+  int8_t par_h5;
+  uint8_t par_h6;
+  int8_t par_h7;
+} bme_calibrations_t;
+
+static bme_config_t g_bme_config = {1.0f, true, true, true};
+static i2c_master_bus_handle_t bus_handle = NULL;
+static i2c_master_dev_handle_t dev_handle = NULL;
+
+void bme_set_config(bme_config_t* cfg) {
+  if (dev_handle == NULL) return;
+  uint8_t buf[2];
+  
+  // Activacion control de humedad
+  uint8_t hum = cfg->enable_hum ? 0x1 : 0x0;
+
+  buf[0] = BME688_CTRL_HUM_ADDR;
+  buf[1] = hum;
+  ESP_ERROR_CHECK(i2c_master_transmit(dev_handle, buf, 2, -1));
+
+  // Activacion presion y temperatura
+  uint8_t temp = cfg->enable_temp ? 0x1 << 5 : 0x0;
+  uint8_t pres = cfg->enable_pres ? 0x1 << 2 : 0x0;
+  uint8_t mode = 0x1;
+
+  buf[0] = BME688_CTRL_MEAS_ADDR;
+  buf[1] = temp | pres | mode;
+  ESP_ERROR_CHECK(i2c_master_transmit(dev_handle, buf, 2, -1));
+}
+
+bme_calibrations_t bme_calibration_coef(void) {
+  uint8_t buf[1];
+
+  /* Calibracion para el medidor */
+  uint16_t calib_1_w[(BME688_CALIB_1_LEN + 1) / 2];
+  uint8_t *calib_1 = (uint8_t *)calib_1_w;
+  buf[0] = BME688_CALIB_1_ADDR;
+  ESP_ERROR_CHECK(i2c_master_transmit_receive(dev_handle, buf, 1, calib_1, BME688_CALIB_1_LEN, -1));
+
+  uint16_t calib_2_w[BME688_CALIB_2_LEN / 2];
+  uint8_t *calib_2 = (uint8_t *)calib_2_w;
+  buf[0] = BME688_CALIB_2_ADDR;
+  ESP_ERROR_CHECK(i2c_master_transmit_receive(dev_handle, buf, 1, calib_2, BME688_CALIB_2_LEN, -1));
+
+  bme_calibrations_t g_par = {
+    .par_t1 = calib_2_w[4],
+    .par_t2 = calib_1_w[0],
+    .par_t3 = calib_1[2],
+  
+    .par_p1 = calib_1_w[2],
+    .par_p2 = calib_1_w[3],
+    .par_p3 = calib_1[8],
+    .par_p4 = calib_1_w[5],
+    .par_p5 = calib_1_w[6],
+    .par_p6 = calib_1[15],
+    .par_p7 = calib_1[14],
+    .par_p8 = calib_1_w[9],
+    .par_p9 = calib_1_w[10],
+    .par_p10 = calib_1[22],
+  
+    .par_h1 = (calib_2[2] << 4) | (calib_2[1] & 0x0F),
+    .par_h2 = (calib_2[0] << 4) | (calib_2[1] >> 4),
+    .par_h3 = calib_2[3],
+    .par_h4 = calib_2[4],
+    .par_h5 = calib_2[5],
+    .par_h6 = calib_2[6],
+    .par_h7 = calib_2[7],
+  };
+
+  return g_par;
+}
+
+void bme_init(void) {
+   /* Init driver */
   i2c_master_bus_config_t bus_config = {
     .i2c_port = I2C_NUM_0,
     .sda_io_num = BME688_SDA_PIN,
@@ -48,13 +144,19 @@ void register_metrics(void) {
   };
   ESP_ERROR_CHECK(i2c_new_master_bus(&bus_config, &bus_handle));
 
-  i2c_master_dev_handle_t dev_handle;
   i2c_device_config_t dev_config = {
     .dev_addr_length = I2C_ADDR_BIT_LEN_7,
     .device_address = BME688_I2C_SLAVE_ADDR,
     .scl_speed_hz = 400000,
   };
   ESP_ERROR_CHECK(i2c_master_bus_add_device(bus_handle, &dev_config, &dev_handle));
+
+  // Corroborar que este el disp
+  esp_err_t ret = i2c_master_probe(bus_handle, BME688_I2C_SLAVE_ADDR, 100);
+  if (ret != ESP_OK) {
+      ESP_LOGE(TAG, "No se encontró ningún dispositivo I2C en la dirección 0x%02X", BME688_I2C_SLAVE_ADDR);
+      return;
+  }
 
   /* Init a */
   uint8_t buf[2];
@@ -73,46 +175,7 @@ void register_metrics(void) {
     return;
   }
 
-  /* Init c */
-  /* Calibracion para el medidor */
-  uint16_t calib_1_w[(BME688_CALIB_1_LEN + 1) / 2];
-  uint8_t *calib_1 = (uint8_t *)calib_1_w;
-  buf[0] = BME688_CALIB_1_ADDR;
-  ESP_ERROR_CHECK(i2c_master_transmit_receive(dev_handle, buf, 1, calib_1, BME688_CALIB_1_LEN, -1));
-
-  uint16_t calib_2_w[BME688_CALIB_2_LEN / 2];
-  uint8_t *calib_2 = (uint8_t *)calib_2_w;
-  buf[0] = BME688_CALIB_2_ADDR;
-  ESP_ERROR_CHECK(i2c_master_transmit_receive(dev_handle, buf, 1, calib_2, BME688_CALIB_2_LEN, -1));
-
-  uint16_t par_t1 = calib_2_w[4];
-  int16_t par_t2 = calib_1_w[0];
-  int8_t par_t3 = calib_1[2];
-
-  uint16_t par_p1 = calib_1_w[2];
-  int16_t par_p2 = calib_1_w[3];
-  int8_t par_p3 = calib_1[8];
-  int16_t par_p4 = calib_1_w[5];
-  int16_t par_p5 = calib_1_w[6];
-  int8_t par_p6 = calib_1[15];
-  int8_t par_p7 = calib_1[14];
-  int16_t par_p8 = calib_1_w[9];
-  int16_t par_p9 = calib_1_w[10];
-  uint8_t par_p10 = calib_1[22];
-
-  uint16_t par_h1 = (calib_2[2] << 4) | (calib_2[1] & 0x0F);
-  uint16_t par_h2 = (calib_2[0] << 4) | (calib_2[1] >> 4);
-  int8_t par_h3 = calib_2[3];
-  int8_t par_h4 = calib_2[4];
-  int8_t par_h5 = calib_2[5];
-  uint8_t par_h6 = calib_2[6];
-  int8_t par_h7 = calib_2[7];
-
   /* Init d */
-  // Activacion control de humedad
-  buf[0] = BME688_CTRL_HUM_ADDR;
-  buf[1] = 0x1;
-  ESP_ERROR_CHECK(i2c_master_transmit(dev_handle, buf, 2, -1));
 
   // Conf?
   buf[0] = BME688_CONFIG_ADDR;
@@ -128,13 +191,22 @@ void register_metrics(void) {
   buf[1] = 0x00;
   ESP_ERROR_CHECK(i2c_master_transmit(dev_handle, buf, 2, -1));
 
+  bme_set_config(&g_bme_config);
+}
+
+void register_metrics() {
+  if (dev_handle == NULL) {
+    bme_init();
+  }
+
+  bme_calibrations_t g_par = bme_calibration_coef();
+  uint8_t buf[1];
+
   /* Read data */
   TickType_t previous_time = xTaskGetTickCount();
 
   for (uint32_t i = 0; i < 1000; i++) {
-    buf[0] = BME688_CTRL_MEAS_ADDR;
-    buf[1] = (0x1 << 5) | (0x1 << 2) | 0x1;
-    ESP_ERROR_CHECK(i2c_master_transmit(dev_handle, buf, 2, -1));
+    bme_set_config(&g_bme_config);
 
     uint8_t data[BME688_DATA_LEN];
     bool ready = false;
@@ -159,38 +231,38 @@ void register_metrics(void) {
       uint16_t hum_adc   = (uint16_t)((data[8] << 8) | data[9]);
 
       /* Temperature [degC] */
-      double var1 = ((double)temp_adc / 16384.0 - (double)par_t1 / 1024.0) * (double)par_t2;
-      double d    = (double)temp_adc / 131072.0 - (double)par_t1 / 8192.0;
-      double var2 = d * d * ((double)par_t3 * 16.0);
+      double var1 = ((double)temp_adc / 16384.0 - (double)g_par.par_t1 / 1024.0) * (double)g_par.par_t2;
+      double d    = (double)temp_adc / 131072.0 - (double)g_par.par_t1 / 8192.0;
+      double var2 = d * d * ((double)g_par.par_t3 * 16.0);
       double t_fine    = var1 + var2;
       double temp_comp = t_fine / 5120.0;
 
       /* Pressure [Pa] */
       var1 = (t_fine / 2.0) - 64000.0;
-      var2 = var1 * var1 * ((double)par_p6 / 131072.0);
-      var2 = var2 + (var1 * (double)par_p5 * 2.0);
-      var2 = (var2 / 4.0) + ((double)par_p4 * 65536.0);
-      var1 = ((((double)par_p3 * var1 * var1) / 16384.0) + ((double)par_p2 * var1)) / 524288.0;
-      var1 = (1.0 + (var1 / 32768.0)) * (double)par_p1;
+      var2 = var1 * var1 * ((double)g_par.par_p6 / 131072.0);
+      var2 = var2 + (var1 * (double)g_par.par_p5 * 2.0);
+      var2 = (var2 / 4.0) + ((double)g_par.par_p4 * 65536.0);
+      var1 = ((((double)g_par.par_p3 * var1 * var1) / 16384.0) + ((double)g_par.par_p2 * var1)) / 524288.0;
+      var1 = (1.0 + (var1 / 32768.0)) * (double)g_par.par_p1;
       double press_comp = 1048576.0 - (double)press_adc;
       if (var1 != 0.0) {
         press_comp = ((press_comp - (var2 / 4096.0)) * 6250.0) / var1;
-        var1 = ((double)par_p9 * press_comp * press_comp) / 2147483648.0;
-        var2 = press_comp * ((double)par_p8 / 32768.0);
+        var1 = ((double)g_par.par_p9 * press_comp * press_comp) / 2147483648.0;
+        var2 = press_comp * ((double)g_par.par_p8 / 32768.0);
         double var3 = (press_comp / 256.0) * (press_comp / 256.0) * (press_comp / 256.0)
-                      * ((double)par_p10 / 131072.0);
-        press_comp = press_comp + (var1 + var2 + var3 + ((double)par_p7 * 128.0)) / 16.0;
+                      * ((double)g_par.par_p10 / 131072.0);
+        press_comp = press_comp + (var1 + var2 + var3 + ((double)g_par.par_p7 * 128.0)) / 16.0;
       } else {
         press_comp = 0.0;
       }
 
       /* Humidity [%RH] */
-      var1 = (double)hum_adc - (((double)par_h1 * 16.0) + (((double)par_h3 / 2.0) * temp_comp));
-      var2 = var1 * (((double)par_h2 / 262144.0)
-                     * (1.0 + (((double)par_h4 / 16384.0) * temp_comp)
-                            + (((double)par_h5 / 1048576.0) * temp_comp * temp_comp)));
-      double var3 = (double)par_h6 / 16384.0;
-      double var4 = (double)par_h7 / 2097152.0;
+      var1 = (double)hum_adc - (((double)g_par.par_h1 * 16.0) + (((double)g_par.par_h3 / 2.0) * temp_comp));
+      var2 = var1 * (((double)g_par.par_h2 / 262144.0)
+                     * (1.0 + (((double)g_par.par_h4 / 16384.0) * temp_comp)
+                            + (((double)g_par.par_h5 / 1048576.0) * temp_comp * temp_comp)));
+      double var3 = (double)g_par.par_h6 / 16384.0;
+      double var4 = (double)g_par.par_h7 / 2097152.0;
       double hum_comp = var2 + ((var3 + (var4 * temp_comp)) * var2 * var2);
       if (hum_comp > 100.0)
         hum_comp = 100.0;
