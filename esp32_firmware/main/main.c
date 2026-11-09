@@ -6,10 +6,9 @@
 #include "bme688.h"
 
 void app_main(void) {
-    // protocolo_init();
+    protocolo_init();
     // sensors_init();
-    // ambiente_init();
-    // comandos_init();
+    comandos_init();
     bme_init();
     register_metrics();
 }

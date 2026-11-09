@@ -36,11 +36,10 @@
 #define BME688_STATUS_MEASURING     (1 << 5)
 
 typedef struct {
-  float sample_rate_hz;
-  bool enable_temp;
-  bool enable_hum;
-  bool enable_pres;
-} bme_config_t;
+  double pressure;
+  double humidity;
+  double temperature;
+} bme_meditions_t;
 
 typedef struct {
   uint16_t par_t1;
@@ -69,28 +68,32 @@ static bme_config_t g_bme_config = {1.0f, true, true, true};
 static i2c_master_bus_handle_t bus_handle = NULL;
 static i2c_master_dev_handle_t dev_handle = NULL;
 
-void bme_set_config(bme_config_t* cfg) {
+void bme_set_measurements(uint8_t val) {
   if (dev_handle == NULL) return;
+  
+  bool enable_pres = val & 0b1;
+  bool enable_hum = val >> 1 & 0b1;
+  bool enable_temp = val >> 2 & 0b1;
   uint8_t buf[2];
   
   // Activacion control de humedad
-  uint8_t hum = cfg->enable_hum ? 0x1 : 0x0;
+  uint8_t hum = enable_hum;
 
   buf[0] = BME688_CTRL_HUM_ADDR;
   buf[1] = hum;
   ESP_ERROR_CHECK(i2c_master_transmit(dev_handle, buf, 2, -1));
 
   // Activacion presion y temperatura
-  uint8_t temp = cfg->enable_temp ? 0x1 << 5 : 0x0;
-  uint8_t pres = cfg->enable_pres ? 0x1 << 2 : 0x0;
-  uint8_t mode = 0x1;
+  uint8_t pres = enable_pres << 2;
+  uint8_t temp = enable_temp << 5;
+  uint8_t mode = 0b1;
 
   buf[0] = BME688_CTRL_MEAS_ADDR;
   buf[1] = temp | pres | mode;
   ESP_ERROR_CHECK(i2c_master_transmit(dev_handle, buf, 2, -1));
 }
 
-bme_calibrations_t bme_calibration_coef(void) {
+void bme_calibration_coef(bme_calibration_t* calib) {
   uint8_t buf[1];
 
   /* Calibracion para el medidor */
@@ -104,32 +107,30 @@ bme_calibrations_t bme_calibration_coef(void) {
   buf[0] = BME688_CALIB_2_ADDR;
   ESP_ERROR_CHECK(i2c_master_transmit_receive(dev_handle, buf, 1, calib_2, BME688_CALIB_2_LEN, -1));
 
-  bme_calibrations_t g_par = {
-    .par_t1 = calib_2_w[4],
-    .par_t2 = calib_1_w[0],
-    .par_t3 = calib_1[2],
   
-    .par_p1 = calib_1_w[2],
-    .par_p2 = calib_1_w[3],
-    .par_p3 = calib_1[8],
-    .par_p4 = calib_1_w[5],
-    .par_p5 = calib_1_w[6],
-    .par_p6 = calib_1[15],
-    .par_p7 = calib_1[14],
-    .par_p8 = calib_1_w[9],
-    .par_p9 = calib_1_w[10],
-    .par_p10 = calib_1[22],
+  calib->par_t1 = calib_2_w[4];
+  calib->par_t2 = calib_1_w[0];
+  calib->par_t3 = calib_1[2];
   
-    .par_h1 = (calib_2[2] << 4) | (calib_2[1] & 0x0F),
-    .par_h2 = (calib_2[0] << 4) | (calib_2[1] >> 4),
-    .par_h3 = calib_2[3],
-    .par_h4 = calib_2[4],
-    .par_h5 = calib_2[5],
-    .par_h6 = calib_2[6],
-    .par_h7 = calib_2[7],
-  };
-
-  return g_par;
+  calib->par_p1 = calib_1_w[2];
+  calib->par_p2 = calib_1_w[3];
+  calib->par_p3 = calib_1[8];
+  calib->par_p4 = calib_1_w[5];
+  calib->par_p5 = calib_1_w[6];
+  calib->par_p6 = calib_1[15];
+  calib->par_p7 = calib_1[14];
+  calib->par_p8 = calib_1_w[9];
+  calib->par_p9 = calib_1_w[10];
+  calib->par_p10 = calib_1[22];
+  
+  calib->par_h1 = (calib_2[2] << 4) | (calib_2[1] & 0x0F);
+  calib->par_h2 = (calib_2[0] << 4) | (calib_2[1] >> 4);
+  calib->par_h3 = calib_2[3];
+  calib->par_h4 = calib_2[4];
+  calib->par_h5 = calib_2[5];
+  calib->par_h6 = calib_2[6];
+  calib->par_h7 = calib_2[7];
+  
 }
 
 void bme_init(void) {
@@ -194,12 +195,15 @@ void bme_init(void) {
   bme_set_config(&g_bme_config);
 }
 
-void register_metrics() {
+
+
+void bme_get_metrics(bme_meditions_t* meditions) {
   if (dev_handle == NULL) {
     bme_init();
   }
 
-  bme_calibrations_t g_par = bme_calibration_coef();
+  bme_calibrations_t g_par;
+  bme_calibration_coef(&g_par);
   uint8_t buf[1];
 
   /* Read data */
@@ -269,8 +273,10 @@ void register_metrics() {
       else if (hum_comp < 0.0)
         hum_comp = 0.0;
 
-      printf("TEMP:\t%.2f degC\tPRESS:\t%.2f hPa\tHUM:\t%.2f %%RH\n",
-             temp_comp, press_comp / 100.0, hum_comp);
+      meditions->temperature = temp_comp;
+      meditions->pressure = press_comp/100.0;
+      meditions->humidity = hum_comp;
+      //printf("TEMP:\t%.2f degC\tPRESS:\t%.2f hPa\tHUM:\t%.2f %%RH\n", temp_comp, press_comp / 100.0, hum_comp);
     }
 
     xTaskDelayUntil(&previous_time, pdMS_TO_TICKS(1000 / SAMPLE_RATE_HZ));
