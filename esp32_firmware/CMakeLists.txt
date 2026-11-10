@@ -5,4 +5,4 @@ include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 # configura una propiedad global de IDF
 idf_build_set_property(MINIMAL_BUILD ON)
 # debe ir después de incluir IDF
-project(tarea-1)
+project(tarea-2)

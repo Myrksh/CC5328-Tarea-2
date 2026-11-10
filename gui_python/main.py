@@ -13,7 +13,7 @@ from live_plot import LivePlot
 from bme688_gui import Ui_MainWindow  # Ajustar si cambias el nombre del UI
 from receptor import ReceptorSerial
 
-VARIABLES = ("temp", "hum", "pres")
+VARIABLES = ("temp", "hum", "press")
 FRECUENCIAS = (0.5, 1, 2, 5)
 VENTANAS_W = (5, 10, 30, 60)
 
@@ -31,12 +31,12 @@ class Ventana(QMainWindow):
         self.graficos = {
             "temp": LivePlot("Temperatura (°C)"),
             "hum": LivePlot("Humedad (%HR)"),
-            "pres": LivePlot("Presión (hPa)")
+            "press": LivePlot("Presión (hPa)")
         }
 
         self.ui.plot_layout_temp.addWidget(self.graficos["temp"])
         self.ui.plot_layout_hum.addWidget(self.graficos["hum"])
-        self.ui.plot_layout_pres.addWidget(self.graficos["pres"])
+        self.ui.plot_layout_pres.addWidget(self.graficos["press"])
 
         self.llenar_puertos()
         self.conectar_senales()
@@ -135,10 +135,10 @@ class Ventana(QMainWindow):
         # Ajustar estado visual del gráfico según si se recibe o no
         self.graficos["temp"].setEnabled(t_active)
         self.graficos["hum"].setEnabled(h_active)
-        self.graficos["pres"].setEnabled(p_active)
+        self.graficos["press"].setEnabled(p_active)
 
         if self.conectado():
-            cmd = protocol.comando_variables(temp=t_active, hum=h_active, pres=p_active)
+            cmd = protocol.comando_variables(temp=t_active, hum=h_active, press=p_active)
             self.receptor.mandar(cmd)
 
     def enviar_frecuencia(self):
@@ -168,9 +168,9 @@ class Ventana(QMainWindow):
         if "hum" in datos:
             self.graficos["hum"].agregar(datos["hum"])
             self.ui.lbl_val_hum.setText(f"{datos['hum']:.1f} %HR")
-        if "pres" in datos:
-            self.graficos["pres"].agregar(datos["pres"])
-            self.ui.lbl_val_pres.setText(f"{datos['pres']:.1f} hPa")
+        if "press" in datos:
+            self.graficos["press"].agregar(datos["press"])
+            self.ui.lbl_val_pres.setText(f"{datos['press']:.1f} hPa")
 
         # Media Móvil calculada internamente en el ESP32 (temp_avg_c)
         if "temp_avg_c" in datos:

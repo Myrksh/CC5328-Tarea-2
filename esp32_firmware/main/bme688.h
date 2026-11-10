@@ -7,11 +7,10 @@
 #include <driver/i2c_master.h>
 
 typedef struct {
-    float sample_rate_hz;  
-    bool enable_temp;      
-    bool enable_hum;       
-    bool enable_pres;      
-} bme_config;
+    double pressure;
+    double humidity;
+    double temperature;      
+} bme_measurement_t;
 
 typedef struct {
   uint16_t par_t1;
@@ -34,12 +33,14 @@ typedef struct {
   int8_t par_h5;
   uint8_t par_h6;
   int8_t par_h7;
-} calibrations;
+} bme_calibration_t;
 
-void bme_set_config(bme_config* cfg);
+void bme_init(void);
 
-void bme_init();
+void bme_set_metrics(uint8_t val);
 
-void register_metrics(void);
+void bme_calibration_coef(bme_calibration_t* calib);
+
+void bme_get_measurements(bme_measurement_t* measurements, uint8_t mask);
 
 #endif

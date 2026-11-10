@@ -6,8 +6,8 @@
  */
 #include "comandos.h"
 #include "protocol.h"
-#include "sensors.h"
-#include "ambiente.h"
+#include "bme688.h"
+#include "tasks.h"
 
 #include <string.h>
 #include <freertos/FreeRTOS.h>
@@ -36,6 +36,12 @@ static bool parsear_uint(const char *s, uint32_t *out) {
     }
     *out = v;
     return true;
+}
+
+/* Detalle "<valor>" terminado en '\0' */
+static void detalle_num(char *d, size_t *len, uint32_t valor) {
+    protocolo_agregar_entero(d, len, (int32_t)valor);
+    d[*len] = '\0';
 }
 
 /* 0..15, o -1 si no es dígito hexa (acepta minúsculas) */
@@ -76,36 +82,34 @@ static void aplicar(const char *cmd) {
     size_t dl = 0;
 
     if (strncmp(cmd, "INICIAR", 7) == 0 && cmd[7] == '\0') {
-        sensors_reiniciar();
-        bme_fijar_frecuencia(10);
-        bme_fijar_mediciones(0b111); // Los tres encendidos, de ahi b111 -> i7
-        bme_fijar_promedio(false, 10);
-        bme_fijar_picos(false, 28.0f);
+        //sensors_reiniciar();
+        bme_set_metrics(0b111); // Los tres encendidos, de ahi b111 -> i7
+        //bme_fijar_promedio(false, 10);
+        //bme_fijar_picos(false, 28.0f);
         protocolo_fijar_baudios(PROTOCOLO_BAUDIOS_DEFAULT); /* y el baudio vuelve al de arranque */
         responder("OK,INICIAR", "tarea2-v0.1");
         return;
     }
+    // FRECUENCIA EN DECIHERCIOS, PARA EVITAR EL FLOAT
     if (strncmp(cmd, "FRECUENCIA,", 11) == 0) {
-        if (!parsear_uint(cmd, 11, &valor)) {
+        if (!parsear_uint(cmd + 11, &valor)) {
             responder("ERROR,FRECUENCIA", "formato invalido");
         } else if (valor != 5 && valor != 10 && valor != 20 && valor != 50) {
             responder("ERROR,FRECUENCIA", "frecuencia invalida");
         } else {
-            // MODIFICAR
-            // bme_fijar_frecuencia(valor);
+            tasks_set_freq(valor);
             responder("OK,FRECUENCIA", d);
         }
         return;
     }
-    if (strncmp(cmd, "MEDICIONES,", 11) == 0) {
-        if (!parsear_uint(cmd, 11, &valor)) {
-            responder("ERROR,MEDICIONES", "formato invalido");
-        } else if (valor <= 0 || valor > 7) {
-            responder("ERROR,MEDICIONES", "modo invalido");
+    if (strncmp(cmd, "METRICAS,", 9) == 0) {
+        if (!parsear_uint(cmd + 9, &valor)) {
+            responder("ERROR,METRICAS", "formato invalido");
+        } else if (valor < 1 || valor > 7) {
+            responder("ERROR,METRICAS", "modo invalido");
         } else {
-            // MODIFICAR
-            // bme_fijar_mediciones(valor);
-            responder("OK,TEMPERATURA", d);
+            tasks_set_metrics(valor);
+            responder("OK,METRICAS", d);
         }
         return;
     }
@@ -113,7 +117,7 @@ static void aplicar(const char *cmd) {
         int act, w;
         if (sscanf(cmd + 9, "%d,%d", &act, &w) == 2) {
             if ((act == 0 || act == 1) && (w == 5 || w == 10 || w == 30 || w == 60)) { //[cite: 1]
-                bme_fijar_promedio((bool)act, w);
+                //bme_fijar_promedio((bool)act, w);
                 responder("OK,PROMEDIO", cmd + 9);
                 return;
             }
@@ -127,7 +131,7 @@ static void aplicar(const char *cmd) {
         float umbral;
         if (sscanf(cmd + 6, "%d,%f", &act, &umbral) == 2) {
             if (act == 0 || act == 1) {
-                bme_fijar_picos((bool)act, umbral);
+                //bme_fijar_picos((bool)act, umbral);
                 responder("OK,PICOS", cmd + 6);
                 return;
             }

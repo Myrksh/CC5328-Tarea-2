@@ -39,7 +39,7 @@ typedef struct {
   double pressure;
   double humidity;
   double temperature;
-} bme_meditions_t;
+} bme_measurement_t;
 
 typedef struct {
   uint16_t par_t1;
@@ -62,18 +62,17 @@ typedef struct {
   int8_t par_h5;
   uint8_t par_h6;
   int8_t par_h7;
-} bme_calibrations_t;
+} bme_calibration_t;
 
-static bme_config_t g_bme_config = {1.0f, true, true, true};
 static i2c_master_bus_handle_t bus_handle = NULL;
 static i2c_master_dev_handle_t dev_handle = NULL;
 
-void bme_set_measurements(uint8_t val) {
+void bme_set_metrics(uint8_t mask) {
   if (dev_handle == NULL) return;
   
-  bool enable_pres = val & 0b1;
-  bool enable_hum = val >> 1 & 0b1;
-  bool enable_temp = val >> 2 & 0b1;
+  bool enable_press = mask & 0b1;
+  bool enable_hum   = mask >> 1 & 0b1;
+  bool enable_temp  = mask >> 2 & 0b1;
   uint8_t buf[2];
   
   // Activacion control de humedad
@@ -84,12 +83,12 @@ void bme_set_measurements(uint8_t val) {
   ESP_ERROR_CHECK(i2c_master_transmit(dev_handle, buf, 2, -1));
 
   // Activacion presion y temperatura
-  uint8_t pres = enable_pres << 2;
-  uint8_t temp = enable_temp << 5;
-  uint8_t mode = 0b1;
+  uint8_t press = enable_press << 2;
+  uint8_t temp  = enable_temp | enable_press  << 5; // Medir presion requiere temp.
+  uint8_t mode  = 0b1;
 
   buf[0] = BME688_CTRL_MEAS_ADDR;
-  buf[1] = temp | pres | mode;
+  buf[1] = temp | press | mode;
   ESP_ERROR_CHECK(i2c_master_transmit(dev_handle, buf, 2, -1));
 }
 
@@ -191,99 +190,100 @@ void bme_init(void) {
   buf[0] = BME688_CTRL_GAS_1_ADDR;
   buf[1] = 0x00;
   ESP_ERROR_CHECK(i2c_master_transmit(dev_handle, buf, 2, -1));
-
-  bme_set_config(&g_bme_config);
 }
 
+void bme_get_measurements(bme_measurement_t* measurements, uint8_t mask) {
+  // if (dev_handle == NULL) return;
+  // if (measurements == NULL) return;
 
+  bool measure_press = mask & 0b1;     
+  bool measure_hum   = mask >> 1 & 0b1;
+  bool measure_temp  = mask >> 2 & 0b1;
 
-void bme_get_metrics(bme_meditions_t* meditions) {
-  if (dev_handle == NULL) {
-    bme_init();
+  bme_calibration_t calib;
+  bme_calibration_coef(&calib);
+  
+  uint8_t buf[1];
+  uint8_t data[BME688_DATA_LEN];
+  bool ready = false;
+
+  for (uint32_t tries = 0; tries < 20; tries++) {
+    vTaskDelay(pdMS_TO_TICKS(10));
+
+    buf[0] = BME688_MEAS_STATUS_0_ADDR; // Por el modo forzado
+    ESP_ERROR_CHECK(i2c_master_transmit_receive(dev_handle, buf, 1, data, BME688_DATA_LEN, -1));
+
+    if ((data[0] & BME688_STATUS_NEW_DATA) && !(data[0] & BME688_STATUS_MEASURING)) {
+      ready = true;
+      break;
+    }
   }
 
-  bme_calibrations_t g_par;
-  bme_calibration_coef(&g_par);
-  uint8_t buf[1];
+  if (!ready) ESP_LOGE(TAG, "timeout de la medida\n");
+  else {
+    double temp_comp = 0;
+    double hum_comp = 0;
+    double press_comp = 0;
+    double var1, var2, var3, var4;
 
-  /* Read data */
-  TickType_t previous_time = xTaskGetTickCount();
 
-  for (uint32_t i = 0; i < 1000; i++) {
-    bme_set_config(&g_bme_config);
-
-    uint8_t data[BME688_DATA_LEN];
-    bool ready = false;
-
-    for (uint32_t tries = 0; tries < 20; tries++) {
-      vTaskDelay(pdMS_TO_TICKS(10));
-
-      buf[0] = BME688_MEAS_STATUS_0_ADDR; // Por el modo forzado
-      ESP_ERROR_CHECK(i2c_master_transmit_receive(dev_handle, buf, 1, data, BME688_DATA_LEN, -1));
-
-      if ((data[0] & BME688_STATUS_NEW_DATA) && !(data[0] & BME688_STATUS_MEASURING)) {
-        ready = true;
-        break;
-      }
-    }
-
-    if (!ready) {
-      ESP_LOGE(TAG, "timeout de la medida\n");
-    } else {
-      uint32_t press_adc = ((uint32_t)data[2] << 12) | ((uint32_t)data[3] << 4) | (data[4] >> 4);
+    if (measure_temp) {
       uint32_t temp_adc  = ((uint32_t)data[5] << 12) | ((uint32_t)data[6] << 4) | (data[7] >> 4);
-      uint16_t hum_adc   = (uint16_t)((data[8] << 8) | data[9]);
-
+      
       /* Temperature [degC] */
-      double var1 = ((double)temp_adc / 16384.0 - (double)g_par.par_t1 / 1024.0) * (double)g_par.par_t2;
-      double d    = (double)temp_adc / 131072.0 - (double)g_par.par_t1 / 8192.0;
-      double var2 = d * d * ((double)g_par.par_t3 * 16.0);
+      var1 = ((double)temp_adc / 16384.0 - (double)calib.par_t1 / 1024.0) * (double)calib.par_t2;
+      double d    = (double)temp_adc / 131072.0 - (double)calib.par_t1 / 8192.0;
+      var2 = d * d * ((double)calib.par_t3 * 16.0);
       double t_fine    = var1 + var2;
-      double temp_comp = t_fine / 5120.0;
+      temp_comp = t_fine / 5120.0;
+
+
+      // Medicion de presion requiere temperatura, de ahi que este dentro del if
+      if (measure_press) {
+      uint32_t press_adc = ((uint32_t)data[2] << 12) | ((uint32_t)data[3] << 4) | (data[4] >> 4);
 
       /* Pressure [Pa] */
       var1 = (t_fine / 2.0) - 64000.0;
-      var2 = var1 * var1 * ((double)g_par.par_p6 / 131072.0);
-      var2 = var2 + (var1 * (double)g_par.par_p5 * 2.0);
-      var2 = (var2 / 4.0) + ((double)g_par.par_p4 * 65536.0);
-      var1 = ((((double)g_par.par_p3 * var1 * var1) / 16384.0) + ((double)g_par.par_p2 * var1)) / 524288.0;
-      var1 = (1.0 + (var1 / 32768.0)) * (double)g_par.par_p1;
-      double press_comp = 1048576.0 - (double)press_adc;
-      if (var1 != 0.0) {
+      var2 = var1 * var1 * ((double)calib.par_p6 / 131072.0);
+      var2 = var2 + (var1 * (double)calib.par_p5 * 2.0);
+      var2 = (var2 / 4.0) + ((double)calib.par_p4 * 65536.0);
+      var1 = ((((double)calib.par_p3 * var1 * var1) / 16384.0) + ((double)calib.par_p2 * var1)) / 524288.0;
+      var1 = (1.0 + (var1 / 32768.0)) * (double)calib.par_p1;
+      press_comp = 1048576.0 - (double)press_adc;
+      if (var1 == 0.0) press_comp = 0.0;
+      else {
         press_comp = ((press_comp - (var2 / 4096.0)) * 6250.0) / var1;
-        var1 = ((double)g_par.par_p9 * press_comp * press_comp) / 2147483648.0;
-        var2 = press_comp * ((double)g_par.par_p8 / 32768.0);
-        double var3 = (press_comp / 256.0) * (press_comp / 256.0) * (press_comp / 256.0)
-                      * ((double)g_par.par_p10 / 131072.0);
-        press_comp = press_comp + (var1 + var2 + var3 + ((double)g_par.par_p7 * 128.0)) / 16.0;
-      } else {
-        press_comp = 0.0;
+        var1 = ((double)calib.par_p9 * press_comp * press_comp) / 2147483648.0;
+        var2 = press_comp * ((double)calib.par_p8 / 32768.0);
+        var3 = (press_comp / 256.0) * (press_comp / 256.0) * (press_comp / 256.0)
+                      * ((double)calib.par_p10 / 131072.0);
+        press_comp = press_comp + (var1 + var2 + var3 + ((double)calib.par_p7 * 128.0)) / 16.0;
+        press_comp /= 100.0;
+        }
       }
-
-      /* Humidity [%RH] */
-      var1 = (double)hum_adc - (((double)g_par.par_h1 * 16.0) + (((double)g_par.par_h3 / 2.0) * temp_comp));
-      var2 = var1 * (((double)g_par.par_h2 / 262144.0)
-                     * (1.0 + (((double)g_par.par_h4 / 16384.0) * temp_comp)
-                            + (((double)g_par.par_h5 / 1048576.0) * temp_comp * temp_comp)));
-      double var3 = (double)g_par.par_h6 / 16384.0;
-      double var4 = (double)g_par.par_h7 / 2097152.0;
-      double hum_comp = var2 + ((var3 + (var4 * temp_comp)) * var2 * var2);
-      if (hum_comp > 100.0)
-        hum_comp = 100.0;
-      else if (hum_comp < 0.0)
-        hum_comp = 0.0;
-
-      meditions->temperature = temp_comp;
-      meditions->pressure = press_comp/100.0;
-      meditions->humidity = hum_comp;
-      //printf("TEMP:\t%.2f degC\tPRESS:\t%.2f hPa\tHUM:\t%.2f %%RH\n", temp_comp, press_comp / 100.0, hum_comp);
     }
+    
+    if (measure_hum) {
+      uint16_t hum_adc   = (uint16_t)((data[8] << 8) | data[9]);
+      
+      /* Humidity [%RH] */
+      var1 = (double)hum_adc - (((double)calib.par_h1 * 16.0) + (((double)calib.par_h3 / 2.0) * temp_comp));
+      var2 = var1 * (((double)calib.par_h2 / 262144.0)
+      * (1.0 + (((double)calib.par_h4 / 16384.0) * temp_comp)
+      + (((double)calib.par_h5 / 1048576.0) * temp_comp * temp_comp)));
+      var3 = (double)calib.par_h6 / 16384.0;
+      var4 = (double)calib.par_h7 / 2097152.0;
+      hum_comp = var2 + ((var3 + (var4 * temp_comp)) * var2 * var2);
+      if (hum_comp > 100.0) hum_comp = 100.0;
+      else if (hum_comp < 0.0) hum_comp = 0.0;
+    }
+    
+    
+   
 
-    xTaskDelayUntil(&previous_time, pdMS_TO_TICKS(1000 / SAMPLE_RATE_HZ));
+    measurements->temperature = temp_comp;
+    measurements->humidity = hum_comp;
+    measurements->pressure = press_comp;
+    //printf("TEMP:\t%.2f degC\tPRESS:\t%.2f hPa\tHUM:\t%.2f %%RH\n", temp_comp, press_comp / 100.0, hum_comp);
   }
-
-  /* Deinit driver */
-  ESP_ERROR_CHECK(i2c_master_bus_rm_device(dev_handle));
-  ESP_ERROR_CHECK(i2c_del_master_bus(bus_handle));
-  ESP_LOGI(TAG, "I2C de-inicializado\n");
 }
