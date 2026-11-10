@@ -11,34 +11,20 @@
 
 static const char *TAG = "TASKS";
 
-// --- Estructura de Estado Global ---
-typedef struct {
-    float sample_rate_dhz; // 5, 10, 20, 50 dHz
-    uint8_t metric_mask; // primeros tres bits indican temp, humedad y press
-} app_config_t;
-
 static app_config_t g_config = {
     .sample_rate_dhz = 10,
-    .metric_mask = 0b111,
+    .temperature = false,
+    .humidity = true,
+    .pressure = true,
 };
 
 static SemaphoreHandle_t config_mutex = NULL;
 
 // GETTERS SETTERS
-uint8_t tasks_get_metric_mask(void) {
-    uint8_t mask;
+void tasks_get_config(app_config_t* config) {
     if (config_mutex != NULL) xSemaphoreTake(config_mutex, portMAX_DELAY);
-    mask = g_config.metric_mask;
+    *config = g_config;
     if (config_mutex != NULL) xSemaphoreGive(config_mutex);
-    return mask;
-}
-
-uint32_t tasks_get_freq_ms(void) {
-    float freq = 10;
-    if (config_mutex != NULL) xSemaphoreTake(config_mutex, portMAX_DELAY);
-    freq = g_config.sample_rate_dhz;
-    if (config_mutex != NULL) xSemaphoreGive(config_mutex);
-    return (uint32_t)(100.0f / freq);
 }
 
 void tasks_set_freq(float freq_dhz) {
@@ -47,11 +33,15 @@ void tasks_set_freq(float freq_dhz) {
     if (config_mutex != NULL) xSemaphoreGive(config_mutex);
 }
 
-void tasks_set_metrics(uint8_t mask) {
+void tasks_set_metrics(bool temp, bool hum, bool press) {
     if (config_mutex != NULL) xSemaphoreTake(config_mutex, portMAX_DELAY);
-    g_config.metric_mask = mask;
+    g_config.temperature = temp;
+    g_config.humidity = hum;
+    g_config.pressure = press;
     if (config_mutex != NULL) xSemaphoreGive(config_mutex);
 }
+
+uint32_t dHz_to_ms(uint8_t dHz) {return (10000.0f / dHz);}
 
 // Tarea 1
 /*
@@ -83,24 +73,25 @@ static void tarea_comandos(void *arg) {
 static void tarea_adquisicion(void *arg) {
     (void)arg;
     bme_measurement_t lecturas;
+    app_config_t config;
     TickType_t ultimo_ciclo = xTaskGetTickCount();
 
     while (1) {
-        uint8_t mascara = tasks_get_metric_mask();
-        uint32_t periodo_ms = tasks_get_freq_ms();
+        tasks_get_config(&config);
 
         // settear medicion en el BME688
-        bme_set_metrics(mascara);
+        bme_set_metrics(config.temperature, config.humidity, config.pressure);
 
         // obtener datos y enviarlos
-        bme_get_measurements(&lecturas, mascara);
+        bme_get_measurements(&lecturas);
         //protocolo_enviar_telemetria(&lecturas, mascara);
-        printf("TEMP:\t%.2f degC\tPRESS:\t%.2f hPa\tHUM:\t%.2f %%RH\n", 
-            lecturas.temperature, 
-            lecturas.pressure, 
-            lecturas.humidity);
 
-        vTaskDelayUntil(&ultimo_ciclo, pdMS_TO_TICKS(periodo_ms));
+        if (config.temperature) printf("TEMP:\t%.2f degC\t", lecturas.temperature);
+        if (config.humidity)    printf("HUM:\t%.2f %%RH\t", lecturas.humidity);
+        if (config.pressure)    printf("PRESS:\t%.2f hPa\t", lecturas.pressure);
+        printf("\n");
+
+        vTaskDelayUntil(&ultimo_ciclo, pdMS_TO_TICKS(dHz_to_ms(config.sample_rate_dhz)));
     }
 }
 

@@ -64,32 +64,37 @@ typedef struct {
   int8_t par_h7;
 } bme_calibration_t;
 
+static bool internal_temp  = true;
+static bool internal_hum   = true;
+static bool internal_press = true;
+
 static i2c_master_bus_handle_t bus_handle = NULL;
 static i2c_master_dev_handle_t dev_handle = NULL;
 
-void bme_set_metrics(uint8_t mask) {
+void bme_set_metrics(bool temp, bool hum, bool press) {
   if (dev_handle == NULL) return;
   
-  bool enable_press = mask & 0b1;
-  bool enable_hum   = mask >> 1 & 0b1;
-  bool enable_temp  = mask >> 2 & 0b1;
+  internal_temp  = temp || press; // Medir presion requiere temp.
+  internal_hum   = hum;
+  internal_press = press;
   uint8_t buf[2];
   
   // Activacion control de humedad
-  uint8_t hum = enable_hum;
+  uint8_t h = internal_hum;
 
   buf[0] = BME688_CTRL_HUM_ADDR;
-  buf[1] = hum;
+  buf[1] = h;
   ESP_ERROR_CHECK(i2c_master_transmit(dev_handle, buf, 2, -1));
 
   // Activacion presion y temperatura
-  uint8_t press = enable_press << 2;
-  uint8_t temp  = enable_temp | enable_press  << 5; // Medir presion requiere temp.
+  uint8_t t = internal_temp  << 5; 
+  uint8_t p = internal_press << 2;
   uint8_t mode  = 0b1;
 
   buf[0] = BME688_CTRL_MEAS_ADDR;
-  buf[1] = temp | press | mode;
+  buf[1] = t | p | mode;
   ESP_ERROR_CHECK(i2c_master_transmit(dev_handle, buf, 2, -1));
+
 }
 
 void bme_calibration_coef(bme_calibration_t* calib) {
@@ -192,13 +197,9 @@ void bme_init(void) {
   ESP_ERROR_CHECK(i2c_master_transmit(dev_handle, buf, 2, -1));
 }
 
-void bme_get_measurements(bme_measurement_t* measurements, uint8_t mask) {
+void bme_get_measurements(bme_measurement_t* measurements) {
   // if (dev_handle == NULL) return;
   // if (measurements == NULL) return;
-
-  bool measure_press = mask & 0b1;     
-  bool measure_hum   = mask >> 1 & 0b1;
-  bool measure_temp  = mask >> 2 & 0b1;
 
   bme_calibration_t calib;
   bme_calibration_coef(&calib);
@@ -227,7 +228,7 @@ void bme_get_measurements(bme_measurement_t* measurements, uint8_t mask) {
     double var1, var2, var3, var4;
 
 
-    if (measure_temp) {
+    if (internal_temp) {
       uint32_t temp_adc  = ((uint32_t)data[5] << 12) | ((uint32_t)data[6] << 4) | (data[7] >> 4);
       
       /* Temperature [degC] */
@@ -239,7 +240,7 @@ void bme_get_measurements(bme_measurement_t* measurements, uint8_t mask) {
 
 
       // Medicion de presion requiere temperatura, de ahi que este dentro del if
-      if (measure_press) {
+      if (internal_press) {
       uint32_t press_adc = ((uint32_t)data[2] << 12) | ((uint32_t)data[3] << 4) | (data[4] >> 4);
 
       /* Pressure [Pa] */
@@ -263,7 +264,7 @@ void bme_get_measurements(bme_measurement_t* measurements, uint8_t mask) {
       }
     }
     
-    if (measure_hum) {
+    if (internal_hum) {
       uint16_t hum_adc   = (uint16_t)((data[8] << 8) | data[9]);
       
       /* Humidity [%RH] */
@@ -278,12 +279,9 @@ void bme_get_measurements(bme_measurement_t* measurements, uint8_t mask) {
       else if (hum_comp < 0.0) hum_comp = 0.0;
     }
     
-    
-   
 
     measurements->temperature = temp_comp;
     measurements->humidity = hum_comp;
     measurements->pressure = press_comp;
-    //printf("TEMP:\t%.2f degC\tPRESS:\t%.2f hPa\tHUM:\t%.2f %%RH\n", temp_comp, press_comp / 100.0, hum_comp);
   }
 }

@@ -83,7 +83,7 @@ static void aplicar(const char *cmd) {
 
     if (strncmp(cmd, "INICIAR", 7) == 0 && cmd[7] == '\0') {
         //sensors_reiniciar();
-        bme_set_metrics(0b111); // Los tres encendidos, de ahi b111 -> i7
+        bme_set_metrics(true, true, true);
         //bme_fijar_promedio(false, 10);
         //bme_fijar_picos(false, 28.0f);
         protocolo_fijar_baudios(PROTOCOLO_BAUDIOS_DEFAULT); /* y el baudio vuelve al de arranque */
@@ -108,7 +108,11 @@ static void aplicar(const char *cmd) {
         } else if (valor < 1 || valor > 7) {
             responder("ERROR,METRICAS", "modo invalido");
         } else {
-            tasks_set_metrics(valor);
+            bool enable_press = valor & 0b1;
+            bool enable_hum   = valor >> 1 & 0b1;
+            bool enable_temp  = valor >> 2 & 0b1;
+
+            tasks_set_metrics(enable_press, enable_hum, enable_temp);
             responder("OK,METRICAS", d);
         }
         return;

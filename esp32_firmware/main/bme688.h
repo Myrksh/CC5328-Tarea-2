@@ -9,7 +9,7 @@
 typedef struct {
     double pressure;
     double humidity;
-    double temperature;      
+    double temperature;
 } bme_measurement_t;
 
 typedef struct {
@@ -37,10 +37,10 @@ typedef struct {
 
 void bme_init(void);
 
-void bme_set_metrics(uint8_t val);
+void bme_set_metrics(bool temp, bool hum, bool press);
 
 void bme_calibration_coef(bme_calibration_t* calib);
 
-void bme_get_measurements(bme_measurement_t* measurements, uint8_t mask);
+void bme_get_measurements(bme_measurement_t* measurements);
 
 #endif
