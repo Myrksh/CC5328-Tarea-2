@@ -120,6 +120,9 @@
            </item>
            <item>
             <widget class="QComboBox" name="combo_frecuencia">
+             <property name="currentIndex">
+              <number>1</number>
+             </property>
              <item>
               <property name="text">
                <string>0.5</string>

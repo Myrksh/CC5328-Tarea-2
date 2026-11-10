@@ -192,6 +192,7 @@ class Ui_MainWindow(object):
 
         self.retranslateUi(MainWindow)
         self.pestanas.setCurrentIndex(0)
+        self.combo_frecuencia.setCurrentIndex(1)
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
 
     def retranslateUi(self, MainWindow):

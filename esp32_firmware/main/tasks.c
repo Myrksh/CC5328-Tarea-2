@@ -76,6 +76,8 @@ static void tarea_adquisicion(void *arg) {
     app_config_t config;
     TickType_t ultimo_ciclo = xTaskGetTickCount();
 
+    double temp_avg;
+
     while (1) {
         tasks_get_config(&config);
 

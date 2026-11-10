@@ -6,7 +6,6 @@
 
 void app_main(void) {
     protocolo_init();
-    //comandos_init();
     bme_init();
     tasks_init();
 }

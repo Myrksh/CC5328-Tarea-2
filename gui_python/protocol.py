@@ -20,7 +20,7 @@ def linea(cuerpo):
 
 
 def comando_iniciar():
-    """INICIAR*CK: defaults, fase 0, ambiente 30 s y baudio 115200."""
+    """INICIAR*CK: defaults y baudio 115200."""
     return linea("INICIAR")
 
 def comando_metricas(temp, hum, press):

@@ -10,7 +10,7 @@ from matplotlib.figure import Figure
 
 
 class LivePlot(FigureCanvasQTAgg):
-    def __init__(self, titulo: str, ventana_s: float = 5.0, fps: int = 30):
+    def __init__(self, titulo: str, ventana_s: float = 10.0, fps: int = 60):
         super().__init__(Figure(figsize=(4, 2)))
         self.axes = self.figure.subplots()
         self.ventana_s = ventana_s

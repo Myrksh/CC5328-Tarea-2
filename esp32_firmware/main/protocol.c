@@ -6,6 +6,7 @@
 #include "bme688.h"
 #include "tasks.h"
 
+#include <math.h>
 #include <string.h>
 #include <esp_err.h>
 #include <freertos/FreeRTOS.h>
@@ -78,21 +79,26 @@ void protocolo_enviar_linea(const char *cuerpo) {
     protocolo_enviar_frame(cuerpo, strlen(cuerpo));
 }
 
-void protocolo_enviar_telemetria(const bme_measurement_t *mediciones, const app_config_t *cfg) {
+void protocolo_enviar_measurement(float valor, char* tag, size_t tag_len) {
     char buf[64];
+    memcpy(buf, tag, tag_len);
+    size_t len = tag_len;
+    
+    int32_t valor_cent = lroundf(valor * 100.0f);    
+    protocolo_agregar_entero(buf, &len, valor_cent / 100);
+    buf[len++] = '.';
+    
+    int32_t dec = abs(valor_cent % 100);
+    if (dec < 10) buf[len++] = '0'; // Relleno de cero a la izquierda si es < 10
+    protocolo_agregar_entero(buf, &len, dec);
+    
+    protocolo_enviar_frame(buf, len); // Agrega *CK\n y transmite por UART0
+}
 
-    if (cfg->temperature) {
-        snprintf(buf, sizeof(buf), "TEMPERATURA,%.2f", mediciones->temperature);
-        protocolo_enviar_linea(buf); // Agrega checksum *CK\n y transmite por UART0
-    }
-    if (cfg->humidity) {
-        snprintf(buf, sizeof(buf), "HUMEDAD,%.2f", mediciones->humidity);
-        protocolo_enviar_linea(buf);
-    }
-    if (cfg->pressure) {
-        snprintf(buf, sizeof(buf), "PRESION,%.2f", mediciones->pressure);
-        protocolo_enviar_linea(buf);
-    }
+void protocolo_enviar_telemetria(const bme_measurement_t *mediciones, const app_config_t *cfg) {
+    if (cfg->temperature) protocolo_enviar_measurement(mediciones->temperature, "TEMPERATURA,", 12);
+    if (cfg->humidity) protocolo_enviar_measurement(mediciones->humidity, "HUMEDAD,", 8);
+    if (cfg->pressure) protocolo_enviar_measurement(mediciones->pressure, "PRESION,", 8);
 }
 
 /* Agrega el entero milig al cursor con formato d.ddd (milésimas);
