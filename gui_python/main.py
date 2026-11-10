@@ -89,9 +89,9 @@ class Ventana(QMainWindow):
         self.hilo.started.connect(self.receptor.arrancar)
         self.hilo.finished.connect(self.receptor.cerrar)
 
-        self.receptor.dato_telemetria.connect(self.recibir_telemetria)
-        self.receptor.evento_pico.connect(self.recibir_evento_pico)
-        self.receptor.error_sensor.connect(self.mostrar_error_sensor)
+        self.receptor.lecturas.connect(self.recibir_telemetria)
+        # self.receptor.evento_pico.connect(self.recibir_evento_pico)
+        # self.receptor.error_sensor.connect(self.mostrar_error_sensor)
         self.receptor.respuesta.connect(self.mostrar_respuesta)
         self.receptor.conexion.connect(self.cambio_conexion)
 
@@ -138,7 +138,7 @@ class Ventana(QMainWindow):
         self.graficos["press"].setEnabled(p_active)
 
         if self.conectado():
-            cmd = protocol.comando_variables(temp=t_active, hum=h_active, press=p_active)
+            cmd = protocol.comando_metricas(temp=t_active, hum=h_active, press=p_active)
             self.receptor.mandar(cmd)
 
     def enviar_frecuencia(self):
@@ -204,8 +204,8 @@ class Ventana(QMainWindow):
         """Envía el estado actual de los controles de la GUI apenas se conecta."""
         self.validar_y_enviar_variables()
         self.enviar_frecuencia()
-        self.enviar_config_media_movil()
-        self.enviar_config_picos()
+        # self.enviar_config_media_movil()
+        # self.enviar_config_picos()
 
     def closeEvent(self, evento):
         if self.hilo is not None:

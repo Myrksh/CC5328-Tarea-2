@@ -9,8 +9,9 @@ from PyQt6.QtCore import QObject, QTimer, pyqtSignal, pyqtSlot
 import protocol
 
 class ReceptorSerial(QObject):
-    dato_eje = pyqtSignal(str, float)  # eje X/Y/Z, valor en g
-    ambiente = pyqtSignal(float, int)  # °C, %HR
+    # dato_eje = pyqtSignal(str, float)  # eje X/Y/Z, valor en g
+    # ambiente = pyqtSignal(float, int)  # °C, %HR
+    lecturas = pyqtSignal(dict) # Lectura de Temp, Hum, Press
     respuesta = pyqtSignal(str)  # cuerpo completo OK/ERROR
     conexion = pyqtSignal(bool, str)  # estado + motivo del fallo
 
@@ -106,18 +107,26 @@ class ReceptorSerial(QObject):
             self.serie.close()
 
     def repartir(self, cuerpo):
-        if cuerpo.startswith("ACELEROMETRO,"):
+        if cuerpo.startswith("OK,") or cuerpo.startswith("ERROR,"):
+            self.respuesta.emit(cuerpo)
+
+        if self.pausado: return
+
+        elif cuerpo.startswith("TEMPERATURA,"):
             try:
-                _, eje, valor = cuerpo.split(",")
+                _, valor = cuerpo.split(",")
             except ValueError:
                 return  # campo raro con checksum: descarte
-            if not self.pausado:
-                self.dato_eje.emit(eje, float(valor))
-        elif cuerpo.startswith("AMBIENTE,"):
+            self.lecturas.emit({"temp": float(valor)})
+        elif cuerpo.startswith("HUMEDAD,"):
             try:
-                _, temp, hr = cuerpo.split(",")
+                _, valor = cuerpo.split(",")
             except ValueError:
                 return
-            self.ambiente.emit(float(temp), int(hr))
-        elif cuerpo.startswith("OK,") or cuerpo.startswith("ERROR,"):
-            self.respuesta.emit(cuerpo)
+            self.lecturas.emit({"hum": float(valor)})
+        elif cuerpo.startswith("PRESION,"):
+            try:
+                _, valor = cuerpo.split(",")
+            except ValueError:
+                return
+            self.lecturas.emit({"press": float(valor)})

@@ -9,11 +9,11 @@
 #include <driver/uart.h>
 #include <esp_log.h>
 
-static const char *TAG = "TASKS";
+//static const char *TAG = "TASKS";
 
 static app_config_t g_config = {
     .sample_rate_dhz = 10,
-    .temperature = false,
+    .temperature = true,
     .humidity = true,
     .pressure = true,
 };
@@ -44,7 +44,7 @@ void tasks_set_metrics(bool temp, bool hum, bool press) {
 uint32_t dHz_to_ms(uint8_t dHz) {return (10000.0f / dHz);}
 
 // Tarea 1
-/*
+
 static void tarea_comandos(void *arg) {
     (void)arg;
     uint8_t chunk[32];
@@ -67,7 +67,7 @@ static void tarea_comandos(void *arg) {
         }
     }
 }
-*/
+
 
 // tarea 2: Adquisicion y Emision del BME688 
 static void tarea_adquisicion(void *arg) {
@@ -84,12 +84,12 @@ static void tarea_adquisicion(void *arg) {
 
         // obtener datos y enviarlos
         bme_get_measurements(&lecturas);
-        //protocolo_enviar_telemetria(&lecturas, mascara);
+        protocolo_enviar_telemetria(&lecturas, &config);
 
-        if (config.temperature) printf("TEMP:\t%.2f degC\t", lecturas.temperature);
-        if (config.humidity)    printf("HUM:\t%.2f %%RH\t", lecturas.humidity);
-        if (config.pressure)    printf("PRESS:\t%.2f hPa\t", lecturas.pressure);
-        printf("\n");
+        // if (config.temperature) printf("TEMP:\t%.2f degC\t", lecturas.temperature);
+        // if (config.humidity)    printf("HUM:\t%.2f %%RH\t", lecturas.humidity);
+        // if (config.pressure)    printf("PRESS:\t%.2f hPa\t", lecturas.pressure);
+        // printf("\n");
 
         vTaskDelayUntil(&ultimo_ciclo, pdMS_TO_TICKS(dHz_to_ms(config.sample_rate_dhz)));
     }
@@ -100,6 +100,6 @@ void tasks_init(void) {
     config_mutex = xSemaphoreCreateMutex();
 
     // Lanza ambas tareas concurrentes en FreeRTOS
-    //xTaskCreate(tarea_comandos, "t_comandos", 4096, NULL, 10, NULL);
+    xTaskCreate(tarea_comandos, "t_comandos", 4096, NULL, 10, NULL);
     xTaskCreate(tarea_adquisicion, "t_adquisicion", 4096, NULL, 10, NULL);
 }

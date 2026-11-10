@@ -3,6 +3,8 @@
  * embeb-uart-usb/multiplex/main/main.c
  */
 #include "protocol.h"
+#include "bme688.h"
+#include "tasks.h"
 
 #include <string.h>
 #include <esp_err.h>
@@ -74,6 +76,23 @@ void protocolo_enviar_linea(const char *cuerpo) {
         return;
     }
     protocolo_enviar_frame(cuerpo, strlen(cuerpo));
+}
+
+void protocolo_enviar_telemetria(const bme_measurement_t *mediciones, const app_config_t *cfg) {
+    char buf[64];
+
+    if (cfg->temperature) {
+        snprintf(buf, sizeof(buf), "TEMPERATURA,%.2f", mediciones->temperature);
+        protocolo_enviar_linea(buf); // Agrega checksum *CK\n y transmite por UART0
+    }
+    if (cfg->humidity) {
+        snprintf(buf, sizeof(buf), "HUMEDAD,%.2f", mediciones->humidity);
+        protocolo_enviar_linea(buf);
+    }
+    if (cfg->pressure) {
+        snprintf(buf, sizeof(buf), "PRESION,%.2f", mediciones->pressure);
+        protocolo_enviar_linea(buf);
+    }
 }
 
 /* Agrega el entero milig al cursor con formato d.ddd (milésimas);

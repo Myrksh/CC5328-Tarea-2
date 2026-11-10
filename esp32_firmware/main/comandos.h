@@ -7,4 +7,6 @@
 /* Acumula hasta '\n', valida el checksum y responde OK/ERROR. */
 void comandos_init(void);
 
+void procesar(char *cuerpo);
+
 #endif /* COMANDOS_H */

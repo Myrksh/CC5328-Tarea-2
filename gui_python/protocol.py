@@ -23,25 +23,24 @@ def comando_iniciar():
     """INICIAR*CK: defaults, fase 0, ambiente 30 s y baudio 115200."""
     return linea("INICIAR")
 
-
-def comando_funcion(eje, funcion):
-    """FUNCION,<eje>,<n>*CK: 1 armónica, 2 modulada AM, 3 multicomponente."""
-    return linea(f"FUNCION,{eje},{funcion}")
-
-
-def comando_amplitud(eje, amplitud):
-    """AMPLITUD,<eje>,<g>*CK: amplitud en g, {4, 8, 16}."""
-    return linea(f"AMPLITUD,{eje},{amplitud}")
+def comando_metricas(temp, hum, press):
+    """METRICAS,<mascara>*CK: mascara que indica temperatura, humedad y presion. {1, ..., 7}
+       Ej: 6 -> 0b110 -> se mide temperatura y humedad, presion desactivada."""
+    mascara = temp
+    mascara = mascara << 1 | hum
+    mascara = mascara << 1 | press
+    return linea(f"METRICAS,{mascara}")
 
 
-def comando_frecuencia(eje, fs):
-    """FRECUENCIA,<eje>,<fs>*CK: fs de muestreo en {50, 100, 200, 500, 1000}."""
-    return linea(f"FRECUENCIA,{eje},{fs}")
+def comando_frecuencia(fs):
+    """FRECUENCIA,<valor>*CK: fs de muestreo en dHz {5, 10, 20, 50}."""
+    return linea(f"FRECUENCIA,{fs}")
 
+def comando_promedios(asd):
+    pass
 
-def comando_periodo(periodo):
-    """PERIODO,<s>*CK: periodo de emisión del ambiente, {30, 60}."""
-    return linea(f"PERIODO,{periodo}")
+def comando_picos(asd):
+    pass
 
 
 def comando_baudios(baudios):

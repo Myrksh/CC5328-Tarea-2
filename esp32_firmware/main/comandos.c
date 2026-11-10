@@ -9,6 +9,7 @@
 #include "bme688.h"
 #include "tasks.h"
 
+#include <stdint.h>
 #include <string.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -112,7 +113,7 @@ static void aplicar(const char *cmd) {
             bool enable_hum   = valor >> 1 & 0b1;
             bool enable_temp  = valor >> 2 & 0b1;
 
-            tasks_set_metrics(enable_press, enable_hum, enable_temp);
+            tasks_set_metrics(enable_temp, enable_hum, enable_press);
             responder("OK,METRICAS", d);
         }
         return;
@@ -162,7 +163,7 @@ static void aplicar(const char *cmd) {
 }
 
 /* Verifica el checksum; falla → descarte silencioso */
-static void procesar(char *cuerpo) {
+void procesar(char *cuerpo) {
     char *star = strchr(cuerpo, '*');
     if (star == NULL || star[3] != '\0') {
         return; /* sin checksum o basura al final */
@@ -179,44 +180,3 @@ static void procesar(char *cuerpo) {
     aplicar(cuerpo);
 }
 
-static void tarea_comandos(void *arg) {
-    (void)arg;
-    uint8_t chunk[32];
-    char acumulado[COMANDO_MAX];
-    size_t n = 0;
-    bool desbordado = false;
-    while (1) {
-        int leidos = uart_read_bytes(UART_PORT_NUM, chunk, sizeof(chunk),
-                                     pdMS_TO_TICKS(20));
-        for (int i = 0; i < leidos; i++) {
-            uint8_t b = chunk[i];
-            if (b == '\n' || b == '\r') {
-                desbordado = false;
-                if (n > 0) {
-                    acumulado[n] = '\0';
-                    procesar(acumulado);
-                    n = 0;
-                }
-            } else if (!desbordado) {
-                acumulado[n++] = (char)b;
-                if (n >= COMANDO_MAX) {
-                    desbordado = true; /* línea excesiva: descarte silencioso */
-                }
-            }
-        }
-        if (leidos <= 0) {
-            if (n > 0 && !desbordado) {
-                /* silencio también cierra la línea: tolera paste
-                 * sin '\n' y Enter que llega tarde */
-                acumulado[n] = '\0';
-                procesar(acumulado);
-            }
-            n = 0;
-            desbordado = false;
-        }
-    }
-}
-
-void comandos_init(void) {
-    xTaskCreate(tarea_comandos, "comandos", 4096, NULL, 10, NULL);
-}
