@@ -7,12 +7,6 @@
 #include <driver/i2c_master.h>
 
 typedef struct {
-    double pressure;
-    double humidity;
-    double temperature;
-} bme_measurement_t;
-
-typedef struct {
   uint16_t par_t1;
   int16_t par_t2;
   int8_t par_t3;

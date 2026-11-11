@@ -97,8 +97,10 @@ void protocolo_enviar_measurement(float valor, char* tag, size_t tag_len) {
 
 void protocolo_enviar_telemetria(const bme_measurement_t *mediciones, const app_config_t *cfg) {
     if (cfg->temperature) protocolo_enviar_measurement(mediciones->temperature, "TEMPERATURA,", 12);
-    if (cfg->humidity) protocolo_enviar_measurement(mediciones->humidity, "HUMEDAD,", 8);
-    if (cfg->pressure) protocolo_enviar_measurement(mediciones->pressure, "PRESION,", 8);
+    if (cfg->humidity)    protocolo_enviar_measurement(mediciones->humidity, "HUMEDAD,", 8);
+    if (cfg->pressure)    protocolo_enviar_measurement(mediciones->pressure, "PRESION,", 8);
+    if (cfg->t_avg)       protocolo_enviar_measurement(mediciones->temp_avg_c, "TEMP_AVG_C,", 11);
+    //if (cfg->t_peak)      protocolo_enviar_measurement(mediciones->temp_peak, "PICO,", 5);
 }
 
 /* Agrega el entero milig al cursor con formato d.ddd (milésimas);

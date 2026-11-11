@@ -8,6 +8,8 @@
 #include <esp_err.h>
 #include <driver/i2c_master.h>
 
+#include "tasks.h"
+
 #define TAG                     "main"
 #define SAMPLE_RATE_HZ          5
 
@@ -35,11 +37,6 @@
 #define BME688_STATUS_NEW_DATA      (1 << 7)
 #define BME688_STATUS_MEASURING     (1 << 5)
 
-typedef struct {
-  double pressure;
-  double humidity;
-  double temperature;
-} bme_measurement_t;
 
 typedef struct {
   uint16_t par_t1;
