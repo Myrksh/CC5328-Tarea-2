@@ -20,9 +20,9 @@ static app_config_t g_config = {
     .t_avg = false,
     .t_avg_w = 10,
 
-    .t_peak = false,
+    .t_peak = true,
     .t_peak_start_time = 0,
-    .t_peak_threshold = 28,
+    .t_peak_threshold = 22,
 
     .temperature = true,
     .humidity = true,
@@ -153,9 +153,9 @@ static void tarea_adquisicion(void *arg) {
     TickType_t ultimo_ciclo = xTaskGetTickCount();
 
     // Buffer circular mantenido localmente en la tarea
-    double temps[MAX_SAMPLES];
-    uint16_t temps_index = 0;
-    uint16_t sample_count = 0;
+    static double temps[MAX_SAMPLES];
+    static uint16_t temps_index = 0;
+    static uint16_t sample_count = 0;
 
     bool must_use_temp = false;
     

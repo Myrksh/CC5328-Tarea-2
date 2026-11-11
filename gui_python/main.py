@@ -54,8 +54,8 @@ class Ventana(QMainWindow):
 
         self.ui.combo_frecuencia.currentIndexChanged.connect(self.enviar_frecuencia)
 
-        self.ui.chk_media_movil.stateChanged.connect(self.enviar_config_media_movil)
-        self.ui.combo_ventana_w.currentIndexChanged.connect(self.enviar_config_media_movil)
+        self.ui.chk_media_movil.stateChanged.connect(self.enviar_config_promedio)
+        self.ui.combo_ventana_w.currentIndexChanged.connect(self.enviar_config_promedio)
 
         self.ui.chk_picos.stateChanged.connect(self.enviar_config_picos)
         self.ui.spin_umbral_pico.valueChanged.connect(self.enviar_config_picos)
@@ -90,8 +90,8 @@ class Ventana(QMainWindow):
         self.hilo.finished.connect(self.receptor.cerrar)
 
         self.receptor.lecturas.connect(self.recibir_telemetria)
-        # self.receptor.evento_pico.connect(self.recibir_evento_pico)
-        # self.receptor.error_sensor.connect(self.mostrar_error_sensor)
+        self.receptor.picos.connect(self.recibir_pico)
+        self.receptor.promedio.connect(self.recibir_promedio)
         self.receptor.respuesta.connect(self.mostrar_respuesta)
         self.receptor.conexion.connect(self.cambio_conexion)
 
@@ -146,11 +146,11 @@ class Ventana(QMainWindow):
             freq = float(self.ui.combo_frecuencia.currentText())
             self.receptor.mandar(protocol.comando_frecuencia(freq))
 
-    def enviar_config_media_movil(self):
+    def enviar_config_promedio(self):
         if self.conectado():
             enabled = self.ui.chk_media_movil.isChecked()
             w_sec = int(self.ui.combo_ventana_w.currentText())
-            self.receptor.mandar(protocol.comando_media_movil(enabled, w_sec))
+            self.receptor.mandar(protocol.comando_promedio(enabled, w_sec))
 
     def enviar_config_picos(self):
         if self.conectado():
@@ -180,10 +180,18 @@ class Ventana(QMainWindow):
             self.ui.lbl_val_temp_avg.setText(status_str)
 
     @pyqtSlot(float, float, int)
-    def recibir_evento_pico(self, valor_pico: float, umbral: float, timestamp_ms: int):
+    def recibir_pico(self, valor_pico: float, umbral: float, timestamp_ms: int):
         """Registra en el historial los eventos de picos locales superados en el ESP32."""
         mensaje = f"[{timestamp_ms} ms] ¡PICO DETECTADO! Valor: {valor_pico:.2f} °C (Umbral: {umbral:.1f} °C)"
         self.ui.lista_eventos_picos.addItem(mensaje)
+
+    @pyqtSlot(float)#, bool)
+    def recibir_promedio(self, temp_avg_c: float):#, es_completo: bool):
+        """Recibe el promedio calculado en el ESP32 y actualiza la UI."""
+        if self.pausado:
+            return
+        status_str = f"{temp_avg_c:.2f} °C" #if es_completo else f"{temp_avg_c:.2f} °C (Incompleto)"
+        self.ui.lbl_val_temp_avg.setText(status_str)
 
     @pyqtSlot(str)
     def mostrar_error_sensor(self, error_msg: str):
@@ -204,8 +212,8 @@ class Ventana(QMainWindow):
         """Envía el estado actual de los controles de la GUI apenas se conecta."""
         self.validar_y_enviar_variables()
         self.enviar_frecuencia()
-        # self.enviar_config_media_movil()
-        # self.enviar_config_picos()
+        self.enviar_config_promedio()
+        self.enviar_config_picos()
 
     def closeEvent(self, evento):
         if self.hilo is not None:

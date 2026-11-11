@@ -135,7 +135,7 @@ static void aplicar(const char *cmd) {
         int act;
         float umbral;
         if (sscanf(cmd + 6, "%d,%f", &act, &umbral) == 2) {
-            if (act == 0 || act == 1) {
+            if ((act == 0 || act == 1) && (-100.0f <= umbral && umbral <= 100.0)) {
                 tasks_set_peak(act, umbral);
                 responder("OK,PICOS", cmd + 6);
                 return;

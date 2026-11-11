@@ -36,11 +36,15 @@ def comando_frecuencia(fs):
     """FRECUENCIA,<valor>*CK: fs de muestreo en dHz {5, 10, 20, 50}."""
     return linea(f"FRECUENCIA,{fs}")
 
-def comando_promedios(asd):
-    pass
+def comando_promedio(enabled, w):
+    """PROMEDIO,<enabled>,<w>*CK: ventana w de tiempo que se promediara {5, 10, 30, 60}."""
+    enabled = 1 if enabled else 0
+    return linea(f"PROMEDIO,{enabled},{w}")
 
-def comando_picos(asd):
-    pass
+def comando_picos(enabled, umbral):
+    """PICOS,<enabled>,<umbral>*CK: umbral de temperatura en la que se considerara pico (-100,100)."""
+    enabled = 1 if enabled else 0
+    return linea(f"PICOS,{enabled},{umbral}")
 
 
 def comando_baudios(baudios):
