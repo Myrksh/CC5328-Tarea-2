@@ -22,7 +22,7 @@ static app_config_t g_config = {
 
     .t_peak = false,
     .t_peak_start_time = 0,
-    .t_peak_threashold = 28,
+    .t_peak_threshold = 28,
 
     .temperature = true,
     .humidity = true,
@@ -68,28 +68,56 @@ void tasks_set_peak(bool on, float threshold) {
 
 uint32_t dHz_to_ms(uint8_t dHz) {return (10000.0f / dHz);}
 
-double subtarea_promedio(double last_temperature, double* temps, uint16_t* temp_i, uint16_t* sample_count, uint8_t w) {
-    temps[temp_i] = last_temperature;
-    if (sample_count < MAX_SAMPLES) *sample_count++; 
-    temp_i = (temp_i + 1) % MAX_SAMPLES;
+static void subtarea_promedio(const app_config_t *cfg, 
+                              measurement_t *lecturas, 
+                              const double *temps, 
+                              uint16_t temps_index, 
+                              uint16_t sample_count) {
 
-    uint16_t needed_samples = w * freq_hz / 10.0f;
+    uint8_t w = cfg->t_avg_w;
+    uint8_t freq_hz = cfg->sample_rate_dhz / 10.0f;
+
+
+    uint16_t needed_samples = w * freq_hz;
     if (needed_samples == 0) needed_samples = 1;
 
     uint16_t count_to_avg = (sample_count < needed_samples) ? sample_count : needed_samples;
 
     double sum = 0.0;
     for (uint16_t i = 0; i < count_to_avg; i++) {
-        int idx = (int)head - 1 - (int)i;
+        int idx = (int)temps_index - 1 - (int)i;
         if (idx < 0) idx += MAX_SAMPLES;
         sum += temps[idx];
     }
 
-    return sum / count_to_avg;
+    lecturas->temp_avg_c = sum / count_to_avg;
 }
 
-void subtarea_picos() {
-    
+static void subtarea_picos(const app_config_t *cfg, 
+                           measurement_t *lecturas, 
+                           const double *temps, 
+                           uint16_t temps_index, 
+                           uint16_t sample_count) {
+        // Se requieren al menos 3 muestras
+        if (sample_count < 3) return;
+
+        float peak_threshold = cfg->t_peak_threshold;
+
+        int i_k_2 = ((int)temps_index - 3 + MAX_SAMPLES) % MAX_SAMPLES;
+        int i_k_1 = ((int)temps_index - 2 + MAX_SAMPLES) % MAX_SAMPLES;
+        int i_cur = ((int)temps_index - 1 + MAX_SAMPLES) % MAX_SAMPLES;
+
+        double tempk_2 = temps[i_k_2];
+        double tempk_1 = temps[i_k_1];
+        double current_temp = temps[i_cur];
+
+        // condiciones
+        if (tempk_1 > tempk_2 && tempk_1 > current_temp && tempk_1 > peak_threshold) {
+            lecturas->has_t_peak = true;
+            lecturas->temp_peak = tempk_1;
+            lecturas->temp_peak_time = (uint32_t)pdTICKS_TO_MS(xTaskGetTickCount()) - cfg->t_peak_start_time;
+            lecturas->temp_peak_threshold = peak_threshold;
+        }
 }
 
 // Tarea 1
@@ -124,14 +152,13 @@ static void tarea_adquisicion(void *arg) {
     app_config_t config;
     TickType_t ultimo_ciclo = xTaskGetTickCount();
 
+    // Buffer circular mantenido localmente en la tarea
+    double temps[MAX_SAMPLES];
+    uint16_t temps_index = 0;
+    uint16_t sample_count = 0;
+
     bool must_use_temp = false;
-
-    // Promedio
-    double temps[300];
-    uint16_t W, sample_count = 0;
-    bool avg_complete = false;
-    double temp_avg_c = 0.0;
-
+    
     while (1) {
         tasks_get_config(&config);
         must_use_temp = config.t_avg || config.t_peak;
@@ -140,16 +167,23 @@ static void tarea_adquisicion(void *arg) {
         bme_set_metrics(config.temperature || must_use_temp, config.humidity, config.pressure);
         // obtener datos
         bme_get_measurements(&lecturas);
+        lecturas.has_t_peak = false;
 
         // Promedio
-        if (config.t_avg) lecturas.temp_avg_c = subtarea_promedio(lecturas.temperature, temps, last_temp_i, samples);
-        //if (config.t_peak) lecturas.temp_peak = subtarea_picos(lecturas.temperature);
+        if (must_use_temp) {
+            temps[temps_index] = lecturas.temperature;
+            temps_index = (temps_index + 1) % MAX_SAMPLES;
+            if (sample_count < MAX_SAMPLES) sample_count++;
+        }
+        if (config.t_avg) subtarea_promedio(&config, &lecturas, temps, temps_index, sample_count);
+        if (config.t_peak) subtarea_picos(&config, &lecturas, temps, temps_index, sample_count);
 
         protocolo_enviar_telemetria(&lecturas, &config);
 
         vTaskDelayUntil(&ultimo_ciclo, pdMS_TO_TICKS(dHz_to_ms(config.sample_rate_dhz)));
     }
 }
+
 
 // --- Inicializador Global ---
 void tasks_init(void) {

@@ -194,7 +194,7 @@ void bme_init(void) {
   ESP_ERROR_CHECK(i2c_master_transmit(dev_handle, buf, 2, -1));
 }
 
-void bme_get_measurements(bme_measurement_t* measurements) {
+void bme_get_measurements(measurement_t* measurements) {
   // if (dev_handle == NULL) return;
   // if (measurements == NULL) return;
 

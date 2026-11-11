@@ -12,7 +12,7 @@ typedef struct {
     uint8_t t_avg_w;
 
     bool t_peak;
-    time_t t_peak_start_time;
+    uint32_t t_peak_start_time;
     float t_peak_threshold;
 
     bool temperature;
@@ -27,9 +27,10 @@ typedef struct {
 
     double temp_avg_c;
 
+    bool has_t_peak;
     double temp_peak;
     uint32_t temp_peak_time;
-    float temp_peak_threshold
+    float temp_peak_threshold;
 } measurement_t;
 
 void tasks_init(void);
@@ -40,6 +41,8 @@ uint32_t dHz_to_ms(uint8_t dHz);
 uint32_t tasks_get_freq_ms(void);
 
 // SETTERS con mutex
+void tasks_set_mean(bool on, uint8_t time);
+void tasks_set_peak(bool on, float threshold);
 void tasks_set_freq(float freq_dhz);
 void tasks_set_metrics(bool temp, bool hum, bool press);
 

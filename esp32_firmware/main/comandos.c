@@ -83,10 +83,10 @@ static void aplicar(const char *cmd) {
     size_t dl = 0;
 
     if (strncmp(cmd, "INICIAR", 7) == 0 && cmd[7] == '\0') {
-        //sensors_reiniciar();
-        bme_set_metrics(true, true, true);
-        //bme_fijar_promedio(false, 10);
-        //bme_fijar_picos(false, 28.0f);
+        tasks_set_metrics(true, true, true);
+        tasks_set_freq(10);
+        tasks_set_mean(false, 10);
+        tasks_set_peak(false, 28.0f);
         protocolo_fijar_baudios(PROTOCOLO_BAUDIOS_DEFAULT); /* y el baudio vuelve al de arranque */
         responder("OK,INICIAR", "tarea2-v0.1");
         return;
@@ -122,7 +122,7 @@ static void aplicar(const char *cmd) {
         int act, w;
         if (sscanf(cmd + 9, "%d,%d", &act, &w) == 2) {
             if ((act == 0 || act == 1) && (w == 5 || w == 10 || w == 30 || w == 60)) { //[cite: 1]
-                //bme_fijar_promedio((bool)act, w);
+                tasks_set_mean(act, w);
                 responder("OK,PROMEDIO", cmd + 9);
                 return;
             }
@@ -136,7 +136,7 @@ static void aplicar(const char *cmd) {
         float umbral;
         if (sscanf(cmd + 6, "%d,%f", &act, &umbral) == 2) {
             if (act == 0 || act == 1) {
-                //bme_fijar_picos((bool)act, umbral);
+                tasks_set_peak(act, umbral);
                 responder("OK,PICOS", cmd + 6);
                 return;
             }

@@ -29,7 +29,7 @@ void protocolo_fijar_baudios(uint32_t baudios);
  * Evita dataraces entre tasks usando un mutex; len no incluye '\0' final. */
 void protocolo_enviar_frame(const char *datos, size_t len);
 
-void protocolo_enviar_telemetria(const bme_measurement_t *mediciones, const app_config_t *cfg);
+void protocolo_enviar_telemetria(const measurement_t *mediciones, const app_config_t *cfg);
 
 /* Conveniencia para cuerpos terminados en '\0': delega en
  * protocolo_enviar_frame() midiendo con strlen. */

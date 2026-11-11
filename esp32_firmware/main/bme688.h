@@ -1,6 +1,7 @@
 #ifndef BME688_H
 #define BME688_H
 
+#include "tasks.h"
 #include <stdint.h>
 #include <stdbool.h>
 #include <esp_err.h>
@@ -35,6 +36,6 @@ void bme_set_metrics(bool temp, bool hum, bool press);
 
 void bme_calibration_coef(bme_calibration_t* calib);
 
-void bme_get_measurements(bme_measurement_t* measurements);
+void bme_get_measurements(measurement_t* measurements);
 
 #endif
