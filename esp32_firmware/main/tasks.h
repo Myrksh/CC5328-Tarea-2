@@ -6,15 +6,16 @@
 
 // --- Estructura de Estado Global ---
 typedef struct {
+    uint32_t start_time;
     float sample_rate_dhz; // 5, 10, 20, 50 dHz
-
+    
+    uint16_t sample_count;
     bool t_avg;
     uint8_t t_avg_w;
-
+    
     bool t_peak;
-    uint32_t t_peak_start_time;
     float t_peak_threshold;
-
+    
     bool temperature;
     bool humidity;
     bool pressure;
@@ -24,12 +25,15 @@ typedef struct {
     double pressure;
     double humidity;
     double temperature;
+    
 
     double temp_avg_c;
+    bool avg_complete;
 
     bool has_t_peak;
     double temp_peak;
     uint32_t temp_peak_time;
+    uint32_t prev_temp_time;
     float temp_peak_threshold;
 } measurement_t;
 
@@ -45,6 +49,7 @@ void tasks_set_mean(bool on, uint8_t time);
 void tasks_set_peak(bool on, float threshold);
 void tasks_set_freq(float freq_dhz);
 void tasks_set_metrics(bool temp, bool hum, bool press);
+void tasks_set_start_time(void);
 
 
 #endif 

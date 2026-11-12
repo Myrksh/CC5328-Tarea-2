@@ -10,7 +10,7 @@ import protocol
 
 class ReceptorSerial(QObject):
     lecturas = pyqtSignal(dict) # Lectura de Temp, Hum, Press
-    promedio = pyqtSignal(float)  # promedio de lectura en la ventana w
+    promedio = pyqtSignal(float, bool)  # promedio de lectura en la ventana w
     picos = pyqtSignal(float, float, int)  # picos
     respuesta = pyqtSignal(str)  # cuerpo completo OK/ERROR
     conexion = pyqtSignal(bool, str)  # estado + motivo del fallo
@@ -118,28 +118,33 @@ class ReceptorSerial(QObject):
             except ValueError:
                 return  # campo raro con checksum: descarte
             self.lecturas.emit({"temp": float(valor)})
+            #print(cuerpo)
         elif cuerpo.startswith("HUMEDAD,"):
             try:
                 _, valor = cuerpo.split(",")
             except ValueError:
                 return
             self.lecturas.emit({"hum": float(valor)})
+            #print(cuerpo)
         elif cuerpo.startswith("PRESION,"):
             try:
                 _, valor = cuerpo.split(",")
             except ValueError:
                 return
             self.lecturas.emit({"press": float(valor)})
+            #print(cuerpo)
 
         elif cuerpo.startswith("TEMP_AVG_C,"):
             try:
-                _, valor = cuerpo.split(",")
+                _, valor, completado = cuerpo.split(",")
             except ValueError:
                 return
-            self.promedio.emit(float(valor))
+            self.promedio.emit(float(valor), int(completado)==1)
+            #print(cuerpo)
         elif cuerpo.startswith("PICO,"):
             try:
                 _, pico, umbral, time = cuerpo.split(",")
             except ValueError:
                 return
             self.picos.emit(float(pico), float(umbral), int(time))
+            #print(cuerpo)

@@ -24,6 +24,13 @@ class Ventana(QMainWindow):
         self.ui.setupUi(self)
         self.setWindowTitle("Tarea 2 — BME688")
 
+        self.ui.horizontalLayout_temp_box.setStretch(0, 2)
+        self.ui.horizontalLayout_temp_box.setStretch(1, 1)
+        self.ui.horizontalLayout_hum_box.setStretch(0, 2)
+        self.ui.horizontalLayout_hum_box.setStretch(1, 1)
+        self.ui.horizontalLayout_pres_box.setStretch(0, 2)
+        self.ui.horizontalLayout_pres_box.setStretch(1, 1)
+
         self.hilo = None
         self.receptor = None
         self.pausado = False
@@ -111,8 +118,12 @@ class Ventana(QMainWindow):
         if ok:
             self.ui.action_conectar.setEnabled(False)
             self.ui.action_desconectar.setEnabled(True)
+
             self.sincronizar_configuracion_inicial()
+            for grafico in self.graficos.values():
+                grafico.limpiar()
             self.ui.statusbar.showMessage(f"Conectado a {self.ui.puerto_combo.currentText()}")
+
         else:
             self.desconectar()
             self.ui.statusbar.showMessage(f"Fallo de conexión: {motivo}")
@@ -136,6 +147,10 @@ class Ventana(QMainWindow):
         self.graficos["temp"].setEnabled(t_active)
         self.graficos["hum"].setEnabled(h_active)
         self.graficos["press"].setEnabled(p_active)
+
+        if not t_active: self.ui.lbl_val_temp.setText("-- °C")
+        if not h_active: self.ui.lbl_val_hum.setText("-- %HR")
+        if not p_active: self.ui.lbl_val_pres.setText("-- hPa")
 
         if self.conectado():
             cmd = protocol.comando_metricas(temp=t_active, hum=h_active, press=p_active)
@@ -172,7 +187,7 @@ class Ventana(QMainWindow):
             self.graficos["press"].agregar(datos["press"])
             self.ui.lbl_val_pres.setText(f"{datos['press']:.1f} hPa")
 
-        # Media Móvil calculada internamente en el ESP32 (temp_avg_c)
+        # Promedio calculado internamente en el ESP32 (temp_avg_c)
         if "temp_avg_c" in datos:
             avg_val = datos["temp_avg_c"]
             is_complete = datos.get("avg_complete", True)
@@ -182,15 +197,15 @@ class Ventana(QMainWindow):
     @pyqtSlot(float, float, int)
     def recibir_pico(self, valor_pico: float, umbral: float, timestamp_ms: int):
         """Registra en el historial los eventos de picos locales superados en el ESP32."""
-        mensaje = f"[{timestamp_ms} ms] ¡PICO DETECTADO! Valor: {valor_pico:.2f} °C (Umbral: {umbral:.1f} °C)"
+        mensaje = f"[{timestamp_ms/1000} s] ¡PICO DETECTADO! Valor: {valor_pico:.2f} °C (Umbral: {umbral:.1f} °C)"
         self.ui.lista_eventos_picos.addItem(mensaje)
+        self.ui.lista_eventos_picos.scrollToBottom()
 
-    @pyqtSlot(float)#, bool)
-    def recibir_promedio(self, temp_avg_c: float):#, es_completo: bool):
+    @pyqtSlot(float, bool)
+    def recibir_promedio(self, temp_avg_c: float, es_completo: bool):
         """Recibe el promedio calculado en el ESP32 y actualiza la UI."""
-        if self.pausado:
-            return
-        status_str = f"{temp_avg_c:.2f} °C" #if es_completo else f"{temp_avg_c:.2f} °C (Incompleto)"
+        if self.pausado: return
+        status_str = f"{temp_avg_c:.2f} °C" if es_completo else f"{temp_avg_c:.2f} °C (Incompleto)"
         self.ui.lbl_val_temp_avg.setText(status_str)
 
     @pyqtSlot(str)

@@ -34,7 +34,7 @@ def comando_metricas(temp, hum, press):
 
 def comando_frecuencia(fs):
     """FRECUENCIA,<valor>*CK: fs de muestreo en dHz {5, 10, 20, 50}."""
-    return linea(f"FRECUENCIA,{fs}")
+    return linea(f"FRECUENCIA,{int(fs*10)}")
 
 def comando_promedio(enabled, w):
     """PROMEDIO,<enabled>,<w>*CK: ventana w de tiempo que se promediara {5, 10, 30, 60}."""

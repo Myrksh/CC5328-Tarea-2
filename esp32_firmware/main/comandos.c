@@ -88,6 +88,7 @@ static void aplicar(const char *cmd) {
         tasks_set_mean(false, 10);
         tasks_set_peak(false, 28.0f);
         protocolo_fijar_baudios(PROTOCOLO_BAUDIOS_DEFAULT); /* y el baudio vuelve al de arranque */
+        tasks_set_start_time();
         responder("OK,INICIAR", "tarea2-v0.1");
         return;
     }

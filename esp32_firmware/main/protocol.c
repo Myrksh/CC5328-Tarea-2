@@ -99,7 +99,14 @@ void protocolo_enviar_telemetria(const measurement_t *mediciones, const app_conf
     if (cfg->temperature) protocolo_enviar_measurement(mediciones->temperature, "TEMPERATURA,", 12);
     if (cfg->humidity)    protocolo_enviar_measurement(mediciones->humidity, "HUMEDAD,", 8);
     if (cfg->pressure)    protocolo_enviar_measurement(mediciones->pressure, "PRESION,", 8);
-    if (cfg->t_avg)       protocolo_enviar_measurement(mediciones->temp_avg_c, "TEMP_AVG_C,", 11);
+    //if (cfg->t_avg)       protocolo_enviar_measurement(mediciones->temp_avg_c, "TEMP_AVG_C,", 11);
+    if (cfg->t_avg) {
+        char buf[64];
+        snprintf(buf, sizeof(buf), "TEMP_AVG_C,%.2f,%d", 
+                 mediciones->temp_avg_c,
+                 mediciones->avg_complete ? 1 : 0);
+                 protocolo_enviar_linea(buf);
+    }
     if (cfg->t_peak && mediciones->has_t_peak) {
         char buf[64];
         snprintf(buf, sizeof(buf), "PICO,%.2f,%.1f,%lu", 
