@@ -141,8 +141,9 @@ class ReceptorSerial(QObject):
         if self.serie is not None and self.serie.is_open:
             self.serie.close()
 
+    ## FUNCION QUE DESEMPAQUETA UNA TRANSMISIÓN
     def repartir(self, cuerpo):
-        print(cuerpo)
+        #print(cuerpo)
         if cuerpo.startswith("OK,") or cuerpo.startswith("ERROR,"):
             self.respuesta.emit(cuerpo)
 
@@ -166,19 +167,16 @@ class ReceptorSerial(QObject):
                 try:
                     self.lecturas.emit({"temp": float(valor)})
                 except ValueError: return  # campo raro con checksum: descarte
-                #print(cuerpo)
             if campos["HUM"] is not None:
                 valor = campos["HUM"]
                 try:
                     self.lecturas.emit({"hum": float(valor)})
                 except ValueError: return
-                #print(cuerpo)
             if campos["PRES"] is not None:
                 valor = campos["PRES"]
                 try:
                     self.lecturas.emit({"press": float(valor)})
                 except ValueError: return
-                #print(cuerpo)
 
             if campos["TEMP_AVG_C"] is not None:
                 valor = campos["TEMP_AVG_C"]
@@ -186,7 +184,6 @@ class ReceptorSerial(QObject):
                 try:
                     self.promedio.emit(float(valor), int(completado)==1)
                 except ValueError: return
-                #print(cuerpo)
             if campos["PICO"] is not None:
                 valor = campos["PICO"]
                 umbral = campos["UMBRAL"]
@@ -194,4 +191,3 @@ class ReceptorSerial(QObject):
                 try:
                     self.picos.emit(float(valor), float(umbral), int(time))
                 except ValueError: return
-                #print(cuerpo)
