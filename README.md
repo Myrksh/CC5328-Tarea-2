@@ -152,4 +152,4 @@ CC5328-Tarea-2/
 
 ## 8. Video Demostrativo
 
-- **Enlace al video de demostración:** [Agregar enlace de YouTube / Google Drive aquí](https://tu-enlace-al-video.com)
+- **Enlace al video de demostración:** [Aquí pondria el video, si tuviese uno >:c](https://www.youtube.com/watch?v=dQw4w9WgXcQ)
