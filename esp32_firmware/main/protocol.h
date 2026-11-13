@@ -31,6 +31,9 @@ void protocolo_enviar_frame(const char *datos, size_t len);
 
 void protocolo_enviar_telemetria(const measurement_t *mediciones, const app_config_t *cfg);
 
+/* Agrega un entero con signo al cursor; dígitos en reversa. */
+void protocolo_agregar_entero(char *buf, size_t *len, int32_t valor);
+
 /* Conveniencia para cuerpos terminados en '\0': delega en
  * protocolo_enviar_frame() midiendo con strlen. */
 void protocolo_enviar_linea(const char *cuerpo);

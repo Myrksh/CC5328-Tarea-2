@@ -2,6 +2,7 @@
 valida las líneas con protocol.validar() y las reparte como señales Qt.
 """
 import queue
+import time
 
 import serial
 from PyQt6.QtCore import QObject, QTimer, pyqtSignal, pyqtSlot
@@ -25,6 +26,14 @@ class ReceptorSerial(QObject):
         self.buffer = ""
         self._baudios = baudios
         self._baudios_pendientes = None
+
+        self._transmisión_en_curso = None      # Ej: "METRICAS,6*4F\n"
+        self._tag_en_transmision = None        # Ej: "METRICAS"
+        self._t_envio = 0.0
+        self._reintentos = 0
+        self._max_reintentos = 3
+        self._timeout_ack = 0.25
+
         self.timer = QTimer(self)
         self.timer.setInterval(20)
         self.timer.timeout.connect(self.leer)
@@ -80,13 +89,38 @@ class ReceptorSerial(QObject):
         self.serie = serial.Serial(self.puerto, self._baudios, timeout=0)
 
     def escribir_pendientes(self):
-        """Comandos encolados desde la GUI (escritura solo en este hilo)."""
-        while True:
-            try:
-                texto = self.cola_tx.get_nowait()
-            except queue.Empty:
-                return
-            self.serie.write(texto.encode("ascii"))
+        """Envía un comando a la vez y reintenta si el ESP32 no responde con ACK."""
+        ahora = time.monotonic()
+
+        # 1. Si hay un comando esperando ACK, verificar timeout
+        if self._transmisión_en_curso is not None:
+            if (ahora - self._t_envio) >= self._timeout_ack:
+                if self._reintentos < self._max_reintentos:
+                    self._reintentos += 1
+                    self._t_envio = ahora
+                    self.serie.write(self._trama_en_vuelo.encode("ascii"))
+                else:
+                    # Agotó reintentos: avisar a la GUI y liberar cola
+                    fallido = self._tag_en_vuelo
+                    self._transmisión_en_curso = None
+                    self._tag_en_transmision = None
+                    self.respuesta.emit(fallido)
+            return  # No enviar el siguiente hasta resolver el actual
+
+        # 2. Si el canal está libre, sacar el siguiente comando de la cola
+        try:
+            texto = self.cola_tx.get_nowait()
+        except queue.Empty:
+            return
+
+        # Extraer el nombre del comando (ej: "METRICAS,6*4F\n" -> "METRICAS")
+        cuerpo = texto.split("*", 1)[0]
+        self._tag_en_transmision = cuerpo.split(",", 1)[0]
+        self._transmisión_en_curso = texto
+        self._reintentos = 0
+        self._t_envio = ahora
+
+        self.serie.write(texto.encode("ascii"))
 
     @pyqtSlot()
     def alternar_pausa(self):
@@ -108,6 +142,7 @@ class ReceptorSerial(QObject):
             self.serie.close()
 
     def repartir(self, cuerpo):
+        print(cuerpo)
         if cuerpo.startswith("OK,") or cuerpo.startswith("ERROR,"):
             self.respuesta.emit(cuerpo)
 
@@ -119,7 +154,6 @@ class ReceptorSerial(QObject):
             if self.pausado: return
 
             cuerpo = cuerpo[5:] # Omitir dato
-            print(cuerpo)
 
             for item in cuerpo.split(","):
                 try:

@@ -4,7 +4,6 @@
 #include "tasks.h"
 
 void app_main(void) {
-    esp_wifi_stop()
     protocolo_init();
     bme_init();
     tasks_init();

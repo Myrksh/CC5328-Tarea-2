@@ -93,21 +93,23 @@ static void aplicar(const char *cmd) {
         responder("OK,INICIAR", "tarea2-v1.0");
         return;
     }
-    /*  Comando para setear frecuencia de muestreo  */
-    //  FRECUENCIA EN DECIHERCIOS, PARA EVITAR EL FLOAT
-    if (strncmp(cmd, "FRECUENCIA,", 11) == 0) {
-        if (!parsear_uint(cmd + 11, &valor)) {
-            responder("ERROR,FRECUENCIA", "formato invalido");
-        } else if (valor != 5 && valor != 10 && valor != 20 && valor != 50) {
-            responder("ERROR,FRECUENCIA", "frecuencia invalida");
-        } else {
-            tasks_set_freq(valor);
-            responder("OK,FRECUENCIA", d);
-        }
-        return;
-    }
+
     if (strncmp(cmd, "CONFIG,", 7) == 0){
         aux = 7;
+
+        /*  Comando para setear frecuencia de muestreo  */
+        //  FRECUENCIA EN DECIHERCIOS, PARA EVITAR EL FLOAT
+        if (strncmp(cmd + aux, "FRECUENCIA,", 11) == 0) {
+            if (!parsear_uint(cmd + aux + 11, &valor)) {
+                responder("ERROR,FRECUENCIA", "formato invalido");
+            } else if (valor != 5 && valor != 10 && valor != 20 && valor != 50) {
+                responder("ERROR,FRECUENCIA", "frecuencia invalida");
+            } else {
+                tasks_set_freq(valor);
+                responder("OK,FRECUENCIA", cmd + aux + 11);
+            }
+            return;
+        }
         
         /*  Comando para setear las metricas a medir. Para evitar hacer una por cada metrica,
             junte todo en un numero "mascara". Por ejemplo, 5 -> 0b101 activa temperatura y presion */
@@ -122,7 +124,7 @@ static void aplicar(const char *cmd) {
                 bool enable_temp  = valor >> 2 & 0b1;
     
                 tasks_set_metrics(enable_temp, enable_hum, enable_press);
-                responder("OK,METRICAS", d);
+                responder("OK,METRICAS", cmd + aux +9);
             }
             return;
         }
@@ -175,7 +177,8 @@ static void aplicar(const char *cmd) {
             protocolo_fijar_baudios(valor);
             return;
         }
-        responder("ERROR,desconocido", "sin soporte");
+
+    responder("ERROR,desconocido", "sin soporte");
     }
 }
 

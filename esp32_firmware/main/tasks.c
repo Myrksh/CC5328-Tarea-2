@@ -9,8 +9,6 @@
 #include <freertos/semphr.h>
 #include <driver/uart.h>
 #include <esp_log.h>
-#include <esp_wifi.h>
-#include <esp_err.h>
 
 /*  Tareas principales que se ejecutan en el esp32  */
 
@@ -252,8 +250,6 @@ static void tarea_adquisicion(void *arg) {
 
 // --- Inicializador Global ---
 void tasks_init(void) {
-    if (esp_wifi_stop() == ESP_OK) esp_wifi_deinit()
-
     config_mutex = xSemaphoreCreateMutex();
 
     // Lanza ambas tareas concurrentes en FreeRTOS
