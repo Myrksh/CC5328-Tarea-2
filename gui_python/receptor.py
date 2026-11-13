@@ -14,6 +14,7 @@ class ReceptorSerial(QObject):
     picos = pyqtSignal(float, float, int)  # picos
     respuesta = pyqtSignal(str)  # cuerpo completo OK/ERROR
     conexion = pyqtSignal(bool, str)  # estado + motivo del fallo
+    seq = 0
 
     def __init__(self, puerto, baudios):
         super().__init__()
@@ -110,41 +111,53 @@ class ReceptorSerial(QObject):
         if cuerpo.startswith("OK,") or cuerpo.startswith("ERROR,"):
             self.respuesta.emit(cuerpo)
 
-        if self.pausado: return
+        campos = {"TEMP": None, "HUM": None, "PRES": None,
+                  "TEMP_AVG_C": None, "TEMP_AVG_OK": None,
+                  "PICO": None, "UMBRAL": None, "PICO_T": None}
+        
+        if cuerpo.startswith("DATO,"):
+            if self.pausado: return
 
-        elif cuerpo.startswith("TEMPERATURA,"):
-            try:
-                _, valor = cuerpo.split(",")
-            except ValueError:
-                return  # campo raro con checksum: descarte
-            self.lecturas.emit({"temp": float(valor)})
-            #print(cuerpo)
-        elif cuerpo.startswith("HUMEDAD,"):
-            try:
-                _, valor = cuerpo.split(",")
-            except ValueError:
-                return
-            self.lecturas.emit({"hum": float(valor)})
-            #print(cuerpo)
-        elif cuerpo.startswith("PRESION,"):
-            try:
-                _, valor = cuerpo.split(",")
-            except ValueError:
-                return
-            self.lecturas.emit({"press": float(valor)})
-            #print(cuerpo)
+            cuerpo = cuerpo[5:] # Omitir dato
+            print(cuerpo)
 
-        elif cuerpo.startswith("TEMP_AVG_C,"):
-            try:
-                _, valor, completado = cuerpo.split(",")
-            except ValueError:
-                return
-            self.promedio.emit(float(valor), int(completado)==1)
-            #print(cuerpo)
-        elif cuerpo.startswith("PICO,"):
-            try:
-                _, pico, umbral, time = cuerpo.split(",")
-            except ValueError:
-                return
-            self.picos.emit(float(pico), float(umbral), int(time))
-            #print(cuerpo)
+            for item in cuerpo.split(","):
+                try:
+                    etiqueta, valor = item.split(":", 1)
+                    if etiqueta in campos: campos[etiqueta] = valor
+                except: return # Se encontró bassura
+
+            if campos["TEMP"] is not None:
+                valor = campos["TEMP"]
+                try:
+                    self.lecturas.emit({"temp": float(valor)})
+                except ValueError: return  # campo raro con checksum: descarte
+                #print(cuerpo)
+            if campos["HUM"] is not None:
+                valor = campos["HUM"]
+                try:
+                    self.lecturas.emit({"hum": float(valor)})
+                except ValueError: return
+                #print(cuerpo)
+            if campos["PRES"] is not None:
+                valor = campos["PRES"]
+                try:
+                    self.lecturas.emit({"press": float(valor)})
+                except ValueError: return
+                #print(cuerpo)
+
+            if campos["TEMP_AVG_C"] is not None:
+                valor = campos["TEMP_AVG_C"]
+                completado = campos["TEMP_AVG_OK"]
+                try:
+                    self.promedio.emit(float(valor), int(completado)==1)
+                except ValueError: return
+                #print(cuerpo)
+            if campos["PICO"] is not None:
+                valor = campos["PICO"]
+                umbral = campos["UMBRAL"]
+                time = campos["PICO_T"]
+                try:
+                    self.picos.emit(float(valor), float(umbral), int(time))
+                except ValueError: return
+                #print(cuerpo)

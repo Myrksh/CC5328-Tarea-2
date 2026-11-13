@@ -29,27 +29,27 @@ def comando_metricas(temp, hum, press):
     mascara = temp
     mascara = mascara << 1 | hum
     mascara = mascara << 1 | press
-    return linea(f"METRICAS,{mascara}")
+    return linea(f"CONFIG,METRICAS,{mascara}")
 
 
 def comando_frecuencia(fs):
     """FRECUENCIA,<valor>*CK: fs de muestreo en dHz {5, 10, 20, 50}."""
-    return linea(f"FRECUENCIA,{int(fs*10)}")
+    return linea(f"CONFIG,FRECUENCIA,{int(fs*10)}")
 
 def comando_promedio(enabled, w):
     """PROMEDIO,<enabled>,<w>*CK: ventana w de tiempo que se promediara {5, 10, 30, 60}."""
     enabled = 1 if enabled else 0
-    return linea(f"PROMEDIO,{enabled},{w}")
+    return linea(f"CONFIG,PROMEDIO,{enabled},{w}")
 
 def comando_picos(enabled, umbral):
     """PICOS,<enabled>,<umbral>*CK: umbral de temperatura en la que se considerara pico (-100,100)."""
     enabled = 1 if enabled else 0
-    return linea(f"PICOS,{enabled},{umbral}")
+    return linea(f"CONFIG,PICOS,{enabled},{umbral}")
 
 
 def comando_baudios(baudios):
     """BAUDIOS,<b>*CK: hot-swap del baudio del UART0."""
-    return linea(f"BAUDIOS,{baudios}")
+    return linea(f"CONFIG,BAUDIOS,{baudios}")
 
 
 def validar(texto):

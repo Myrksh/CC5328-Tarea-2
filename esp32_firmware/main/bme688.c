@@ -10,6 +10,7 @@
 
 #include "tasks.h"
 
+/*  Definicion de los pines a utilizar.  */
 #define TAG                     "main"
 #define SAMPLE_RATE_HZ          5
 
@@ -37,7 +38,7 @@
 #define BME688_STATUS_NEW_DATA      (1 << 7)
 #define BME688_STATUS_MEASURING     (1 << 5)
 
-
+/*  Estructura que guarda la calibracion del bme688... Adaptado de lo del aux.  */
 typedef struct {
   uint16_t par_t1;
   int16_t par_t2;
@@ -61,13 +62,20 @@ typedef struct {
   int8_t par_h7;
 } bme_calibration_t;
 
+/*  Estados internos de lectura de metricas. Lo importante es que si se lee presion, tambien temp  */
 static bool internal_temp  = true;
 static bool internal_hum   = true;
 static bool internal_press = true;
 
+
 static i2c_master_bus_handle_t bus_handle = NULL;
 static i2c_master_dev_handle_t dev_handle = NULL;
 
+/*  Funcion que setea las metricas a leer. 
+    @param temp   temperatura
+    @param hum    humedad
+    @param press  presion
+    Renueva los valores internos de medicion y transmite por i2c  */
 void bme_set_metrics(bool temp, bool hum, bool press) {
   if (dev_handle == NULL) return;
   
@@ -94,6 +102,9 @@ void bme_set_metrics(bool temp, bool hum, bool press) {
 
 }
 
+
+/*  Funcion que calcula los coeficientes de calibracion del bme688.
+    Copia del manual y lo que hizo el aux  */
 void bme_calibration_coef(bme_calibration_t* calib) {
   uint8_t buf[1];
 
@@ -134,6 +145,9 @@ void bme_calibration_coef(bme_calibration_t* calib) {
   
 }
 
+
+/*  Funcion de inicializacion del bme688. Setea los puertos y el canal de la comunicacion i2c  
+    También desactiva la medicion de gas por defecto*/
 void bme_init(void) {
    /* Init driver */
   i2c_master_bus_config_t bus_config = {
@@ -194,10 +208,15 @@ void bme_init(void) {
   ESP_ERROR_CHECK(i2c_master_transmit(dev_handle, buf, 2, -1));
 }
 
-void bme_get_measurements(measurement_t* measurements) {
-  // if (dev_handle == NULL) return;
-  // if (measurements == NULL) return;
 
+/*  Funcion principal para obtener lecturas de las metricas.
+    @param measurements   Estructura measurement_t en donde escribir las mediciones
+    En primera instancia calibra. Luego, intenta obtener mediciones una cantidad de tries (20)  
+    Finalmente, dependiendo si esta activa la metrica, la procesa, la calibra y retorna  
+    Las operaciones que hace son del manual y del codigo del aux...  */
+void bme_get_measurements(measurement_t* measurements) {
+
+  // Calibracion
   bme_calibration_t calib;
   bme_calibration_coef(&calib);
   
@@ -205,6 +224,7 @@ void bme_get_measurements(measurement_t* measurements) {
   uint8_t data[BME688_DATA_LEN];
   bool ready = false;
 
+  // Intenta obtener las lecturas
   for (uint32_t tries = 0; tries < 20; tries++) {
     vTaskDelay(pdMS_TO_TICKS(10));
 
@@ -217,6 +237,7 @@ void bme_get_measurements(measurement_t* measurements) {
     }
   }
 
+  // De obtener las lecturas, las procesa.
   if (!ready) ESP_LOGE(TAG, "timeout de la medida\n");
   else {
     double temp_comp = 0;
@@ -277,6 +298,7 @@ void bme_get_measurements(measurement_t* measurements) {
     }
     
 
+    // Escribe y retorna
     measurements->temperature = temp_comp;
     measurements->humidity = hum_comp;
     measurements->pressure = press_comp;

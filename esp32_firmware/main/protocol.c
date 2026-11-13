@@ -3,11 +3,11 @@
  * embeb-uart-usb/multiplex/main/main.c
  */
 #include "protocol.h"
-#include "bme688.h"
 #include "tasks.h"
 
 #include <math.h>
 #include <string.h>
+#include <stdarg.h>
 #include <esp_err.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -20,7 +20,7 @@
 #define RX_BUF_SIZE 4096
 
 /* Línea completa = cuerpo + *CK + \n */
-#define LINEA_MAX 96
+#define LINEA_MAX 128
 
 static SemaphoreHandle_t tx_mutex;
 
@@ -79,53 +79,22 @@ void protocolo_enviar_linea(const char *cuerpo) {
     protocolo_enviar_frame(cuerpo, strlen(cuerpo));
 }
 
-void protocolo_enviar_measurement(float valor, char* tag, size_t tag_len) {
-    char buf[64];
-    memcpy(buf, tag, tag_len);
-    size_t len = tag_len;
-    
-    int32_t valor_cent = lroundf(valor * 100.0f);    
-    protocolo_agregar_entero(buf, &len, valor_cent / 100);
-    buf[len++] = '.';
-    
-    int32_t dec = abs(valor_cent % 100);
-    if (dec < 10) buf[len++] = '0'; // Relleno de cero a la izquierda si es < 10
-    protocolo_agregar_entero(buf, &len, dec);
-    
-    protocolo_enviar_frame(buf, len); // Agrega *CK\n y transmite por UART0
-}
 
-void protocolo_enviar_telemetria(const measurement_t *mediciones, const app_config_t *cfg) {
-    if (cfg->temperature) protocolo_enviar_measurement(mediciones->temperature, "TEMPERATURA,", 12);
-    if (cfg->humidity)    protocolo_enviar_measurement(mediciones->humidity, "HUMEDAD,", 8);
-    if (cfg->pressure)    protocolo_enviar_measurement(mediciones->pressure, "PRESION,", 8);
-    //if (cfg->t_avg)       protocolo_enviar_measurement(mediciones->temp_avg_c, "TEMP_AVG_C,", 11);
-    if (cfg->t_avg) {
-        char buf[64];
-        snprintf(buf, sizeof(buf), "TEMP_AVG_C,%.2f,%d", 
-                 mediciones->temp_avg_c,
-                 mediciones->avg_complete ? 1 : 0);
-                 protocolo_enviar_linea(buf);
-    }
-    if (cfg->t_peak && mediciones->has_t_peak) {
-        char buf[64];
-        snprintf(buf, sizeof(buf), "PICO,%.2f,%.1f,%lu", 
-                 mediciones->temp_peak, 
-                 mediciones->temp_peak_threshold, 
-                 (unsigned long)mediciones->temp_peak_time);
-        protocolo_enviar_linea(buf);
-    }
-}
 
-/* Agrega el entero milig al cursor con formato d.ddd (milésimas);
- * parte entera por dígitos en reversa, 3 decimales fijos. */
-void protocolo_agregar_milig(char *buf, size_t *len, int32_t milig) {
-    if (milig < 0) {
+/* Agrega el numero val al cursos con tantos decimales se requiera 
+ * parte entera por dígitos en reversa, decimales variables. 
+ * reemplaza a protocolo_agrega_milig*/
+void protocolo_agregar_float(char *buf, size_t *len, double val, uint8_t decimales) {
+    uint32_t factor = 1;
+    for (int i = 0; i<decimales; i++) factor*= 10;
+    
+    int32_t escalado = (int32_t)lround(val * (double)factor);
+    if (escalado < 0) {
         buf[(*len)++] = '-';
-        milig = -milig;
+        escalado = -escalado;
     }
-    uint32_t entero = (uint32_t)milig / 1000;
-    uint32_t frac = (uint32_t)milig % 1000;
+    uint32_t entero = (uint32_t)escalado / factor;
+    uint32_t frac = (uint32_t)escalado % factor;
     char digitos[10];
     size_t nd = 0;
     do {
@@ -135,11 +104,18 @@ void protocolo_agregar_milig(char *buf, size_t *len, int32_t milig) {
     while (nd != 0) {
         buf[(*len)++] = digitos[--nd];
     }
-    buf[(*len)++] = '.';
-    buf[(*len)++] = (char)('0' + frac / 100);
-    buf[(*len)++] = (char)('0' + (frac / 10) % 10);
-    buf[(*len)++] = (char)('0' + frac % 10);
+    
+    // Nuevo manejo para multiples decimales
+    if (decimales > 0) {
+        buf[(*len)++] = '.';
+        for (int i = (int)decimales - 1; i >= 0; i--) {
+            factor /= 10;
+            buf[(*len)++] = (char)('0' + (frac / factor) % 10);
+        }
+    }
 }
+
+
 
 /* Agrega un entero con signo al cursor; dígitos en reversa. */
 void protocolo_agregar_entero(char *buf, size_t *len, int32_t valor) {
@@ -158,8 +134,60 @@ void protocolo_agregar_entero(char *buf, size_t *len, int32_t valor) {
     }
 }
 
+/* Concatena ",<etiqueta><valor_float>" al cursor con la cantidad de decimales indicada.*/
+static void protocolo_concat_measure(char *buf, size_t *len, const char *etiqueta, double valor, uint8_t decimales) {
+    buf[(*len)++] = ',';
+    size_t etq_len = strlen(etiqueta);
+    memcpy(buf + *len, etiqueta, etq_len);
+    *len += etq_len;
+    protocolo_agregar_float(buf, len, valor, decimales);
+}
+
+/* Concatena ",<etiqueta><valor_entero>" al cursor (SEQ, bool, etc). */
+static void protocolo_concat_int(char *buf, size_t *len, const char *etiqueta, int32_t valor) {
+    buf[(*len)++] = ',';
+    size_t etq_len = strlen(etiqueta);
+    memcpy(buf + *len, etiqueta, etq_len);
+    *len += etq_len;
+    protocolo_agregar_entero(buf, len, valor);
+}
+
+/*  Funcion que envia las mediciones que correspondan dependiendo de las metricas globales
+    @param *mediciones  estructura en donde se guardan las mediciones
+    @param *cfg         estructura de configuracion
+    Dependiendo de la configuracion, arma un buffer, concatenando etiquetas+valor
+    Finalmente enviar el frame completo.  */
+void protocolo_enviar_telemetria(const measurement_t *mediciones, const app_config_t *cfg) {
+    char buf[LINEA_MAX];
+    size_t len = 0;
+
+    // Encabezado
+    memcpy(buf, "DATO", 4);
+    len += 4;
+
+    // Numero de secuencia
+    protocolo_concat_int(buf, &len, "SEQ:", (int32_t)mediciones->seq);
+
+    // metricas
+    if (cfg->temperature) protocolo_concat_measure(buf, &len, "TEMP:", mediciones->temperature, 2);
+    if (cfg->humidity)    protocolo_concat_measure(buf, &len, "HUM:", mediciones->humidity, 2);
+    if (cfg->pressure)    protocolo_concat_measure(buf, &len, "PRES:", mediciones->pressure, 2);
+    if (cfg->t_avg) {
+        protocolo_concat_measure(buf, &len, "TEMP_AVG_C:", mediciones->temp_avg_c, 2);
+        protocolo_concat_int(buf, &len, "TEMP_AVG_OK:", mediciones->avg_complete ? 1 : 0);
+    }
+    if (cfg->t_peak && mediciones->has_t_peak) {
+        protocolo_concat_measure(buf, &len, "PICO:", mediciones->temp_peak, 2);
+        protocolo_concat_measure(buf, &len, "UMBRAL:", mediciones->temp_peak_threshold, 1);
+        protocolo_concat_int(buf, &len, "PICO_T:", (int32_t)mediciones->temp_peak_time);
+    }
+
+    // 6. Enviar paquete completo con checksum *CK\n
+    protocolo_enviar_frame(buf, len);
+}
+
 /* Cambia el baudio del UART0 en caliente (hot-swap); lo transmitido
- * después de la llamada sale a la velocidad nueva. */
+* después de la llamada sale a la velocidad nueva. */
 void protocolo_fijar_baudios(uint32_t baudios) {
     uart_set_baudrate(UART_PORT_NUM, baudios);
 }
@@ -167,26 +195,26 @@ void protocolo_fijar_baudios(uint32_t baudios) {
 /* Esta función es para probar que todo funcione. */
 static void banner(void) {
     enviar_raw("tarea-1 listo (version 1.0)\n",
-               sizeof("tarea-1 listo (version 1.0)\n") - 1);
-}
-
-void protocolo_init(void) {
-    static const uart_config_t uart_config = {
-        .baud_rate  = 115200,
-        .data_bits  = UART_DATA_8_BITS,
-        .parity     = UART_PARITY_DISABLE,
-        .stop_bits  = UART_STOP_BITS_1,
-        .flow_ctrl  = UART_HW_FLOWCTRL_DISABLE,
-        .source_clk = UART_SCLK_DEFAULT,
-    };
-    ESP_ERROR_CHECK_WITHOUT_ABORT(
-        uart_driver_install(UART_PORT_NUM, RX_BUF_SIZE, 0, 0, NULL, 0));
-    ESP_ERROR_CHECK_WITHOUT_ABORT(
-        uart_param_config(UART_PORT_NUM, &uart_config));
-    ESP_ERROR_CHECK_WITHOUT_ABORT(
-        uart_set_pin(UART_PORT_NUM, 1, 3, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
-
-    tx_mutex = xSemaphoreCreateMutex();
-
-    banner();
-}
+        sizeof("tarea-1 listo (version 1.0)\n") - 1);
+    }
+    
+    void protocolo_init(void) {
+        static const uart_config_t uart_config = {
+            .baud_rate  = 115200,
+            .data_bits  = UART_DATA_8_BITS,
+            .parity     = UART_PARITY_DISABLE,
+            .stop_bits  = UART_STOP_BITS_1,
+            .flow_ctrl  = UART_HW_FLOWCTRL_DISABLE,
+            .source_clk = UART_SCLK_DEFAULT,
+        };
+        ESP_ERROR_CHECK_WITHOUT_ABORT(
+            uart_driver_install(UART_PORT_NUM, RX_BUF_SIZE, 0, 0, NULL, 0));
+            ESP_ERROR_CHECK_WITHOUT_ABORT(
+                uart_param_config(UART_PORT_NUM, &uart_config));
+                ESP_ERROR_CHECK_WITHOUT_ABORT(
+                    uart_set_pin(UART_PORT_NUM, 1, 3, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
+                    
+                    tx_mutex = xSemaphoreCreateMutex();
+                    
+                    banner();
+                }

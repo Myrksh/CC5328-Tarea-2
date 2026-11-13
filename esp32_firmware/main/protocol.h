@@ -38,10 +38,4 @@ void protocolo_enviar_linea(const char *cuerpo);
 /* Checksum con XOR de todos los bytes del cuerpo (sin '*' ni checksum). */
 uint8_t protocolo_checksum(const char *cuerpo);
 
-/* Agrega al cursor un entero en milésimas con formato d.ddd (para valores). */
-void protocolo_agregar_milig(char *buf, size_t *len, int32_t milig);
-
-/* Agrega al cursor un entero con signo (dígitos en reversa). */
-void protocolo_agregar_entero(char *buf, size_t *len, int32_t valor);
-
 #endif /* PROTOCOL_H */

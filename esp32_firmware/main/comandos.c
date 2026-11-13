@@ -81,6 +81,7 @@ static void aplicar(const char *cmd) {
     uint32_t valor;
     char d[16];
     size_t dl = 0;
+    uint8_t aux = 0;
 
     if (strncmp(cmd, "INICIAR", 7) == 0 && cmd[7] == '\0') {
         tasks_set_metrics(true, true, true);
@@ -88,11 +89,12 @@ static void aplicar(const char *cmd) {
         tasks_set_mean(false, 10);
         tasks_set_peak(false, 28.0f);
         protocolo_fijar_baudios(PROTOCOLO_BAUDIOS_DEFAULT); /* y el baudio vuelve al de arranque */
-        tasks_set_start_time();
-        responder("OK,INICIAR", "tarea2-v0.1");
+        tasks_set_start_time(); // Ahora se le agrega el timestamp el momento que inicio la conexion !!!
+        responder("OK,INICIAR", "tarea2-v1.0");
         return;
     }
-    // FRECUENCIA EN DECIHERCIOS, PARA EVITAR EL FLOAT
+    /*  Comando para setear frecuencia de muestreo  */
+    //  FRECUENCIA EN DECIHERCIOS, PARA EVITAR EL FLOAT
     if (strncmp(cmd, "FRECUENCIA,", 11) == 0) {
         if (!parsear_uint(cmd + 11, &valor)) {
             responder("ERROR,FRECUENCIA", "formato invalido");
@@ -104,63 +106,77 @@ static void aplicar(const char *cmd) {
         }
         return;
     }
-    if (strncmp(cmd, "METRICAS,", 9) == 0) {
-        if (!parsear_uint(cmd + 9, &valor)) {
-            responder("ERROR,METRICAS", "formato invalido");
-        } else if (valor < 1 || valor > 7) {
-            responder("ERROR,METRICAS", "modo invalido");
-        } else {
-            bool enable_press = valor & 0b1;
-            bool enable_hum   = valor >> 1 & 0b1;
-            bool enable_temp  = valor >> 2 & 0b1;
-
-            tasks_set_metrics(enable_temp, enable_hum, enable_press);
-            responder("OK,METRICAS", d);
-        }
-        return;
-    }
-    if (strncmp(cmd, "PROMEDIO,", 9) == 0) {
-        int act, w;
-        if (sscanf(cmd + 9, "%d,%d", &act, &w) == 2) {
-            if ((act == 0 || act == 1) && (w == 5 || w == 10 || w == 30 || w == 60)) { //[cite: 1]
-                tasks_set_mean(act, w);
-                responder("OK,PROMEDIO", cmd + 9);
-                return;
+    if (strncmp(cmd, "CONFIG,", 7) == 0){
+        aux = 7;
+        
+        /*  Comando para setear las metricas a medir. Para evitar hacer una por cada metrica,
+            junte todo en un numero "mascara". Por ejemplo, 5 -> 0b101 activa temperatura y presion */
+        if (strncmp(cmd + aux, "METRICAS,", 9) == 0) {
+            if (!parsear_uint(cmd + aux + 9, &valor)) {
+                responder("ERROR,METRICAS", "formato invalido");
+            } else if (valor < 1 || valor > 7) {
+                responder("ERROR,METRICAS", "modo invalido");
+            } else {
+                bool enable_press = valor & 0b1;
+                bool enable_hum   = valor >> 1 & 0b1;
+                bool enable_temp  = valor >> 2 & 0b1;
+    
+                tasks_set_metrics(enable_temp, enable_hum, enable_press);
+                responder("OK,METRICAS", d);
             }
-        }
-        responder("ERROR,PROMEDIO", "parametros invalidos");
-        return;
-    }
-
-    if (strncmp(cmd, "PICOS,", 6) == 0) {
-        int act;
-        float umbral;
-        if (sscanf(cmd + 6, "%d,%f", &act, &umbral) == 2) {
-            if ((act == 0 || act == 1) && (-100.0f <= umbral && umbral <= 100.0)) {
-                tasks_set_peak(act, umbral);
-                responder("OK,PICOS", cmd + 6);
-                return;
-            }
-        }
-        responder("ERROR,PICOS", "parametros invalidos");
-        return;
-    }
-    if (strncmp(cmd, "BAUDIOS,", 8) == 0) {
-        if (!parsear_uint(cmd + 8, &valor)
-            || (valor != 115200 && valor != 230400 && valor != 460800
-                && valor != 921600)) {
-            responder("ERROR,BAUDIOS", "valor invalido");
             return;
         }
-        /* el OK sale al baudio viejo; el cambio aplica 50 ms después,
-         * cuando el receptor ya terminó de leer la respuesta */
-        detalle_num(d, &dl, valor);
-        responder("OK,BAUDIOS", d);
-        vTaskDelay(pdMS_TO_TICKS(50));
-        protocolo_fijar_baudios(valor);
-        return;
+    
+        /*  Comando para activar/desactivar el promedio. Recibe dos parametros:
+            act -> si se debe activar
+             w  -> la ventana en segundos a utilizar.  */
+        if (strncmp(cmd + aux, "PROMEDIO,", 9) == 0) {
+            int act, w;
+            if (sscanf(cmd + aux + 9, "%d,%d", &act, &w) == 2) {
+                if ((act == 0 || act == 1) && (w == 5 || w == 10 || w == 30 || w == 60)) {
+                    tasks_set_mean(act, w);
+                    responder("OK,PROMEDIO", cmd + aux + 9);
+                    return;
+                }
+            }
+            responder("ERROR,PROMEDIO", "parametros invalidos");
+            return;
+        }
+    
+        /*  Comando para activar/desactivar la funcion picos. Recibe dos parametros:
+            act    -> si se debe activar
+            umbral -> cual es el umbral de temperatura */
+        if (strncmp(cmd + aux, "PICOS,", 6) == 0) {
+            int act;
+            float umbral;
+            if (sscanf(cmd + aux + 6, "%d,%f", &act, &umbral) == 2) {
+                if ((act == 0 || act == 1) && (-100.0f <= umbral && umbral <= 100.0)) {
+                    tasks_set_peak(act, umbral);
+                    responder("OK,PICOS", cmd + aux + 6);
+                    return;
+                }
+            }
+            responder("ERROR,PICOS", "parametros invalidos");
+            return;
+        }
+        /*  Comando para cambiar baudios. De la tarea 1, no se cambio nada  */
+        if (strncmp(cmd + aux, "BAUDIOS,", 8) == 0) {
+            if (!parsear_uint(cmd + aux + 8, &valor)
+                || (valor != 115200 && valor != 230400 && valor != 460800
+                    && valor != 921600)) {
+                responder("ERROR,BAUDIOS", "valor invalido");
+                return;
+            }
+            /* el OK sale al baudio viejo; el cambio aplica 50 ms después,
+             * cuando el receptor ya terminó de leer la respuesta */
+            detalle_num(d, &dl, valor);
+            responder("OK,BAUDIOS", d);
+            vTaskDelay(pdMS_TO_TICKS(50));
+            protocolo_fijar_baudios(valor);
+            return;
+        }
+        responder("ERROR,desconocido", "sin soporte");
     }
-    responder("ERROR,desconocido", "sin soporte");
 }
 
 /* Verifica el checksum; falla → descarte silencioso */

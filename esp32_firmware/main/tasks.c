@@ -9,11 +9,17 @@
 #include <freertos/semphr.h>
 #include <driver/uart.h>
 #include <esp_log.h>
+#include <esp_wifi.h>
+#include <esp_err.h>
 
-//static const char *TAG = "TASKS";
+/*  Tareas principales que se ejecutan en el esp32  */
 
-#define MAX_SAMPLES 300
+#define MAX_SAMPLES 300 // Se explica mas adelante
 
+/*  Configuracion inicial/global que tendra el esp32. 
+    Ya que habran dos threads escribiendo en simultaneo,
+    se debe ocupar mutex para su cambio.  
+    Documentación del type en tasks.h  */
 static app_config_t g_config = {
     .sample_rate_dhz = 10,
 
@@ -30,9 +36,9 @@ static app_config_t g_config = {
     .pressure = true,
 };
 
-static SemaphoreHandle_t config_mutex = NULL;
+static SemaphoreHandle_t config_mutex = NULL; // Mutex de g_config
 
-// GETTERS SETTERS
+/*  Getters y Setters de la config global. Los nombres de las func. lo dicen todo  */
 void tasks_get_config(app_config_t* config) {
     if (config_mutex != NULL) xSemaphoreTake(config_mutex, portMAX_DELAY);
     *config = g_config;
@@ -80,53 +86,84 @@ void tasks_increment_sample_count(void) {
     if (config_mutex != NULL) xSemaphoreGive(config_mutex);
 }
 
+/*  Funcion auxiliar, ya que se transmite y guardan los Hz en deciHercios*/
 uint32_t dHz_to_ms(uint8_t dHz) {return (10000.0f / dHz);}
 
+
+/*  Subtarea para calcular el promedio de temperaturas.
+    @param *cfg         configuracion global
+    @param *lecturas    estructura en donde escribir el promedio
+    @param *temps       lista de temperaturas
+    @param last_temp_i  indice de la última temperatura en la lista
+    
+    Calcula el promedio de todas las mediciones de temperatura a los ultimos w segundos
+    De haber menos, promedia los registros que haya.  */
 static void subtarea_promedio(const app_config_t *cfg, 
                               measurement_t *lecturas, 
                               const double *temps, 
-                              uint16_t temps_index, 
-                              uint16_t sample_count) {
+                              uint16_t last_temp_i) {
 
-    uint8_t w = cfg->t_avg_w;
-    float freq_hz = cfg->sample_rate_dhz / 10.0f;
+    uint16_t sample_count = cfg->sample_count;      // Cantidad de lecturas que temps tiene. 
+    uint8_t w = cfg->t_avg_w;                       // Ventana w en segundos
+    float freq_hz = cfg->sample_rate_dhz / 10.0f;   // Los hz de muestreo. Importante!
 
+    // Si hay 5 hz, se deben promediar 5 muestras para cada segundo, de aho la formula
     uint16_t needed_samples = w * freq_hz;
-    if (needed_samples == 0) needed_samples = 1;
-    if (needed_samples <= sample_count) lecturas->avg_complete = true;
-    else lecturas->avg_complete = false;
+    if (needed_samples == 0) needed_samples = 1; // porsiacaso
 
-    uint16_t count_to_avg = (sample_count < needed_samples) ? sample_count : needed_samples;
+    uint16_t count_to_avg; // Muestras a promediar
+    // De haber suficientes muestras, se avisa que el promedio esta completio
+    if (needed_samples <= sample_count) {
+        lecturas->avg_complete = true;
+        count_to_avg = needed_samples;
+    } else {
+        lecturas->avg_complete = false;
+        count_to_avg = sample_count;
+    }
 
     double sum = 0.0;
+    // for de derecha a izq. De topar, sigue por la derecha.
     for (uint16_t i = 0; i < count_to_avg; i++) {
-        int idx = (int)temps_index - 1 - (int)i;
+        int idx = (int)last_temp_i - (int)i;
         if (idx < 0) idx += MAX_SAMPLES;
         sum += temps[idx];
     }
 
-    lecturas->temp_avg_c = sum / count_to_avg;
+    lecturas->temp_avg_c = sum / count_to_avg; // Resultado
 }
 
+/*  Subtarea para calcular picos de temperatura.
+    @param *cfg         configuracion global
+    @param *lecturas    estructura en donde escribir los picos
+    @param *temps       lista de temperaturas
+    @param last_temp_i  indice de la última temperatura en la lista
+    
+    Calcula si hay un pico de temperatura respecto a tres condiciones:
+    Un valor supere un umbral, valor anterior y valor siguiente.
+    También, la variacion debe ser de mas de dos decimales, o se descarta
+    De haber menos de tres lecturas, retorna, evidentemente  */
 static void subtarea_picos(const app_config_t *cfg, 
                            measurement_t *lecturas, 
                            const double *temps, 
-                           uint16_t temps_index, 
-                           uint16_t sample_count) {
-        // Se requieren al menos 3 muestras
-        if (sample_count < 3) return;
-        float peak_delta = 100.0; // Para 2 decimales (centésimas)
+                           uint16_t last_temp_i) {
 
-        float peak_threshold = cfg->t_peak_threshold;
+        uint16_t sample_count = cfg->sample_count;      // Cantidad de lecturas que temps tiene. 
+        float peak_threshold = cfg->t_peak_threshold;   // Umbral a vencer
 
-        int i_k_2 = ((int)temps_index - 3 + MAX_SAMPLES) % MAX_SAMPLES;
-        int i_k_1 = ((int)temps_index - 2 + MAX_SAMPLES) % MAX_SAMPLES;
-        int i_cur = ((int)temps_index - 1 + MAX_SAMPLES) % MAX_SAMPLES;
+        if (sample_count < 3) return;   // Se requieren al menos 3 muestras
+        float peak_delta = 100.0;       // Variacion de 2 decimales (centesimas)
 
+        // Indices, evitando salirse de los bordes
+        int i_k_2 = ((int)last_temp_i - 2 + MAX_SAMPLES) % MAX_SAMPLES;
+        int i_k_1 = ((int)last_temp_i - 1 + MAX_SAMPLES) % MAX_SAMPLES;
+        int i_cur = ((int)last_temp_i + MAX_SAMPLES) % MAX_SAMPLES;
+
+        // Valores de temperatura
         double tempk_2 = temps[i_k_2];
         double tempk_1 = temps[i_k_1];
         double current_temp = temps[i_cur];
 
+        // Redondea a la centesima.
         current_temp = round(current_temp * peak_delta) / peak_delta;
         tempk_2 = round(tempk_2 * peak_delta) / peak_delta;
         tempk_1 = round(tempk_1 * peak_delta) / peak_delta;
@@ -137,12 +174,14 @@ static void subtarea_picos(const app_config_t *cfg,
             lecturas->temp_peak = tempk_1;
             lecturas->temp_peak_time = lecturas->prev_temp_time - cfg->start_time;
             lecturas->temp_peak_threshold = peak_threshold;
-        }
+        } else lecturas->has_t_peak = false;
 
-        lecturas->prev_temp_time = (uint32_t)pdTICKS_TO_MS(xTaskGetTickCount());
+        lecturas->prev_temp_time = (uint32_t)pdTICKS_TO_MS(xTaskGetTickCount()); // Se guarda el tiempo de la ultima temp
 }
 
-// Tarea 1
+/*  Tarea principal - recibir comandos
+    Ejecutada en un thread aparte, se encarga de recibir comandos desde la GUI
+    Viene desde la tarea 1, por lo que no se detalla tanto su uso.  */
 static void tarea_comandos(void *arg) {
     (void)arg;
     uint8_t chunk[32];
@@ -166,47 +205,55 @@ static void tarea_comandos(void *arg) {
     }
 }
 
-
-// tarea 2: Adquisicion y Emision del BME688 
+/*  Tarea principal - adquirir mediciones 
+    Ejecutada en un thread aparte, se encarga de recibir las mediciones del bme688, procesarlas y enviarlas
+    Además, de estar activada la temperatura, registra las mediciones en una lista.*/
 static void tarea_adquisicion(void *arg) {
     (void)arg;
-    measurement_t lecturas;
+    // Inicializacion de estructuras
     app_config_t config;
+    measurement_t lecturas; lecturas.seq = 0;
     TickType_t ultimo_ciclo = xTaskGetTickCount();
 
-    // Buffer circular mantenido localmente en la tarea
-    static double temps[MAX_SAMPLES];
-    static uint16_t temps_index = 0;
+    // Lista de temperaturas. Al llenarse, reemplaza las últimas
+    static double temps[MAX_SAMPLES];   // Pensando en W<=60 y hz<=5, lo máximo a almacenar es 300
+    static uint16_t temps_index = 0;    // Indice a llenar
 
     bool must_use_temp = false;
     
     while (1) {
-        tasks_get_config(&config);
+        tasks_get_config(&config);  // Se obtiene la configuracion global (con mutex)
+
+        // Variable interna que indica si se debe medir temperatura. Tanto le medicion de picos y promedios
+        // la ocupan, aunque de no estar activo config.temperature, no se enviara la medicion actual.
+        // Tambien medir presion ocupa temperatura, pero eso esta en la config de bme688.c
         must_use_temp = config.t_avg || config.t_peak || config.temperature;
 
-        // settear medicion en el BME688
-        bme_set_metrics(must_use_temp, config.humidity, config.pressure);
-        // obtener datos
-        bme_get_measurements(&lecturas);
-        lecturas.has_t_peak = false;
+        bme_set_metrics(must_use_temp, config.humidity, config.pressure);   // Setea los valores a medir en el bme
+        bme_get_measurements(&lecturas);                                    // Y los lee hacia lecturas
 
-        // Promedio
+        // De leer temperatura, aprovecha y guarda los datos en la lista. (aun si peak y promedios no estan activados)
         if (must_use_temp) {
             temps[temps_index] = lecturas.temperature;
             temps_index = (temps_index + 1) % MAX_SAMPLES;
             if (config.sample_count < MAX_SAMPLES) tasks_increment_sample_count(); // No importa tanto el get desincronizado.
         }
-        if (config.t_avg) subtarea_promedio(&config, &lecturas, temps, temps_index, config.sample_count);
-        if (config.t_peak) subtarea_picos(&config, &lecturas, temps, temps_index, config.sample_count);
 
-        protocolo_enviar_telemetria(&lecturas, &config);
+        // Ahora, de estar activos el promedio y los picos, se llama a su subfuncion correspondiente
+        if (config.t_avg) subtarea_promedio(&config, &lecturas, temps, temps_index-1);
+        if (config.t_peak) subtarea_picos(&config, &lecturas, temps, temps_index-1);
 
-        vTaskDelayUntil(&ultimo_ciclo, pdMS_TO_TICKS(dHz_to_ms(config.sample_rate_dhz)));
+        protocolo_enviar_telemetria(&lecturas, &config); // Finalmente, se envia la info
+
+        lecturas.seq++;
+        vTaskDelayUntil(&ultimo_ciclo, pdMS_TO_TICKS(dHz_to_ms(config.sample_rate_dhz))); // Se espera delay de los Hz
     }
 }
 
 // --- Inicializador Global ---
 void tasks_init(void) {
+    if (esp_wifi_stop() == ESP_OK) esp_wifi_deinit()
+
     config_mutex = xSemaphoreCreateMutex();
 
     // Lanza ambas tareas concurrentes en FreeRTOS
