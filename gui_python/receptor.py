@@ -143,7 +143,7 @@ class ReceptorSerial(QObject):
 
     ## FUNCION QUE DESEMPAQUETA UNA TRANSMISIÓN
     def repartir(self, cuerpo):
-        print(cuerpo)
+        #print(cuerpo)
         if cuerpo.startswith("OK,") or cuerpo.startswith("ERROR,"):
             self.respuesta.emit(cuerpo)
 
