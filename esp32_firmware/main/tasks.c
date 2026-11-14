@@ -119,6 +119,11 @@ static void subtarea_promedio(const app_config_t *cfg,
         count_to_avg = sample_count;
     }
 
+    if (count_to_avg == 0) {
+        lecturas->temp_avg_c = lecturas->temperature;
+        return;    
+    }
+
     double sum = 0.0;
     // for de derecha a izq. De topar, sigue por la derecha.
     for (uint16_t i = 0; i < count_to_avg; i++) {
@@ -234,7 +239,10 @@ static void tarea_adquisicion(void *arg) {
         if (must_use_temp) {
             temps[temps_index] = lecturas.temperature;
             temps_index = (temps_index + 1) % MAX_SAMPLES;
-            if (config.sample_count < MAX_SAMPLES) tasks_increment_sample_count(); // No importa tanto el get desincronizado.
+            if (config.sample_count < MAX_SAMPLES) {
+                config.sample_count++;
+                tasks_increment_sample_count();
+            }
         }
 
         // Ahora, de estar activos el promedio y los picos, se llama a su subfuncion correspondiente

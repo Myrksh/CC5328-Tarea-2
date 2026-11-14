@@ -27,7 +27,7 @@ class ReceptorSerial(QObject):
         self._baudios = baudios
         self._baudios_pendientes = None
 
-        self._transmisión_en_curso = None      # Ej: "METRICAS,6*4F\n"
+        self._transmision_en_curso = None      # Ej: "METRICAS,6*4F\n"
         self._tag_en_transmision = None        # Ej: "METRICAS"
         self._t_envio = 0.0
         self._reintentos = 0
@@ -93,16 +93,16 @@ class ReceptorSerial(QObject):
         ahora = time.monotonic()
 
         # 1. Si hay un comando esperando ACK, verificar timeout
-        if self._transmisión_en_curso is not None:
+        if self._transmision_en_curso is not None:
             if (ahora - self._t_envio) >= self._timeout_ack:
                 if self._reintentos < self._max_reintentos:
                     self._reintentos += 1
                     self._t_envio = ahora
-                    self.serie.write(self._trama_en_vuelo.encode("ascii"))
+                    self.serie.write(self._transmision_en_curso.encode("ascii"))
                 else:
                     # Agotó reintentos: avisar a la GUI y liberar cola
-                    fallido = self._tag_en_vuelo
-                    self._transmisión_en_curso = None
+                    fallido = self._tag_en_transmision
+                    self._transmision_en_curso = None
                     self._tag_en_transmision = None
                     self.respuesta.emit(fallido)
             return  # No enviar el siguiente hasta resolver el actual
@@ -116,7 +116,7 @@ class ReceptorSerial(QObject):
         # Extraer el nombre del comando (ej: "METRICAS,6*4F\n" -> "METRICAS")
         cuerpo = texto.split("*", 1)[0]
         self._tag_en_transmision = cuerpo.split(",", 1)[0]
-        self._transmisión_en_curso = texto
+        self._transmision_en_curso = texto
         self._reintentos = 0
         self._t_envio = ahora
 
@@ -143,7 +143,7 @@ class ReceptorSerial(QObject):
 
     ## FUNCION QUE DESEMPAQUETA UNA TRANSMISIÓN
     def repartir(self, cuerpo):
-        #print(cuerpo)
+        print(cuerpo)
         if cuerpo.startswith("OK,") or cuerpo.startswith("ERROR,"):
             self.respuesta.emit(cuerpo)
 
